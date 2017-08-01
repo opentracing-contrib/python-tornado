@@ -18,10 +18,31 @@ class MainHandler(tornado.web.RequestHandler):
 
 class DecoratedHandler(tornado.web.RequestHandler):
     @tracer.trace('protocol', 'doesntexist')
+    def get(self):
+        self.write('{}')
+
+
+class DecoratedErrorHandler(tornado.web.RequestHandler):
+    @tracer.trace()
+    def get(self):
+        raise ValueError('invalid value')
+
+
+class DecoratedCoroutineHandler(tornado.web.RequestHandler):
+    @tracer.trace('protocol', 'doesntexist')
     @tornado.gen.coroutine
     def get(self):
         yield tornado.gen.sleep(0)
+        self.set_status(201)
         self.write('{}')
+
+
+class DecoratedCoroutineErrorHandler(tornado.web.RequestHandler):
+    @tracer.trace()
+    @tornado.gen.coroutine
+    def get(self):
+        yield tornado.gen.sleep(0)
+        raise ValueError('invalid value')
 
 
 def make_app():
@@ -33,6 +54,9 @@ def make_app():
         [
             ('/', MainHandler),
             ('/decorated', DecoratedHandler),
+            ('/decorated_error', DecoratedErrorHandler),
+            ('/decorated_coroutine', DecoratedCoroutineHandler),
+            ('/decorated_coroutine_error', DecoratedCoroutineErrorHandler),
         ],
         **settings
     )
@@ -70,3 +94,39 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
             'http.status_code': 200,
             'protocol': 'http',
         })
+
+    def test_error(self):
+        response = self.fetch('/decorated_error')
+        self.assertEqual(response.code, 500)
+        self.assertEqual(len(tracer._tracer.spans), 1)
+        self.assertTrue(tracer._tracer.spans[0].is_finished)
+        self.assertEqual(tracer._tracer.spans[0].operation_name, 'DecoratedErrorHandler')
+
+        tags = tracer._tracer.spans[0].tags
+        self.assertEqual(tags.get('error', None), 'true')
+        self.assertTrue(isinstance(tags.get('error.object', None), ValueError))
+
+    def test_coroutine(self):
+        response = self.fetch('/decorated_coroutine')
+        self.assertEqual(response.code, 201)
+        self.assertEqual(len(tracer._tracer.spans), 1)
+        self.assertTrue(tracer._tracer.spans[0].is_finished)
+        self.assertEqual(tracer._tracer.spans[0].operation_name, 'DecoratedCoroutineHandler')
+        self.assertEqual(tracer._tracer.spans[0].tags, {
+            'component': 'tornado',
+            'http.url': '/decorated_coroutine',
+            'http.method': 'GET',
+            'http.status_code': 201,
+            'protocol': 'http',
+        })
+
+    def test_coroutine_error(self):
+        response = self.fetch('/decorated_coroutine_error')
+        self.assertEqual(response.code, 500)
+        self.assertEqual(len(tracer._tracer.spans), 1)
+        self.assertTrue(tracer._tracer.spans[0].is_finished)
+        self.assertEqual(tracer._tracer.spans[0].operation_name, 'DecoratedCoroutineErrorHandler')
+
+        tags = tracer._tracer.spans[0].tags
+        self.assertEqual(tags.get('error', None), 'true')
+        self.assertTrue(isinstance(tags.get('error.object', None), ValueError))

@@ -37,14 +37,23 @@ class TornadoTracer(object):
             def wrapper(*args, **kwargs):
                 handler = args[0]
                 span = self._apply_tracing(handler, list(attributes))
+
                 try:
-                    r = func(handler)
+                    result = func(handler)
+
+                    # if it has `add_done_callback` it's a Future,
+                    # else, a normal method/function.
+                    if callable(getattr(result, 'add_done_callback', None)):
+                        result._request_handler = handler
+                        result.add_done_callback(self._finish_tracing_callback)
+                    else:
+                        self._finish_tracing(handler)
+
                 except Exception as exc:
                     self._finish_tracing(handler, error=exc)
                     raise
 
-                self._finish_tracing(handler)
-                return r
+                return result
 
             return wrapper
         return decorator
@@ -52,6 +61,12 @@ class TornadoTracer(object):
     def _get_operation_name(self, handler):
         full_class_name = type(handler).__name__
         return full_class_name.rsplit('.')[-1] # package-less name.
+
+    def _finish_tracing_callback(self, future):
+        handler = getattr(future, '_request_handler', None)
+        if handler is not None:
+            error = future.exception()
+            self._finish_tracing(handler, error=error)
 
     def _apply_tracing(self, handler, attributes):
         '''
