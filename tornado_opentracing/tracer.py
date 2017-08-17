@@ -8,9 +8,11 @@ class TornadoTracer(object):
     @param tracer the OpenTracing tracer to be used
     to trace requests using this TornadoTracer
     '''
-    def __init__(self, tracer, trace_all=False, start_span_cb=None):
+    def __init__(self, tracer, trace_all=False, trace_client=False,
+                 start_span_cb=None):
         self._tracer = tracer
         self._trace_all = trace_all
+        self._trace_client = trace_client
         self._start_span_cb = start_span_cb
         self._current_spans = {}
 

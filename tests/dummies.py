@@ -4,9 +4,11 @@ class DummyTracer(object):
         if with_subtracer:
             self._tracer = object()
         self.spans = []
+        self.extracted_headers = []
 
     def clear(self):
         self.spans = []
+        self.extracted_headers = []
 
     def start_span(self, operation_name, child_of=None):
         span = DummySpan(operation_name, child_of=child_of)
@@ -14,16 +16,11 @@ class DummyTracer(object):
         return span
 
     def inject(self, span_context, format, carrier):
-        pass
+        carrier['ot-format'] = format
+        carrier['ot-headers'] = 'true'
 
     def extract(self, f, headers):
-        '''
-        if self.excToThrow:
-            raise self.excToThrow
-        if self.returnContext:
-            return DummyContext()
-        '''
-
+        self.extracted_headers.append(headers)
         return None
 
 
