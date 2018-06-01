@@ -15,7 +15,7 @@ setup(
     platforms='any',
     install_requires=[
         'tornado',
-        'opentracing>=1.1,<1.2'
+        'opentracing==2.0.0rc2'
     ],
     classifiers=[
         'Environment :: Web Environment',

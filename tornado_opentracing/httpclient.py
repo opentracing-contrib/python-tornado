@@ -64,6 +64,8 @@ def fetch_async(func, handler, args, kwargs):
     if g_start_span_cb:
         g_start_span_cb(span, request)
 
+    # TODO - detect if we are running within a tracer_stack_context()?
+    # if not, create one? Or delegate that on the user?
     future = func(*args, **kwargs)
     future._span = span
     future.add_done_callback(_finish_tracing_callback)

@@ -1,6 +1,7 @@
 from tornado.web import HTTPError
 
 import opentracing
+from opentracing.ext.scope_manager.tornado import tracer_stack_context
 
 
 def execute(func, handler, args, kwargs):
@@ -10,11 +11,18 @@ def execute(func, handler, args, kwargs):
     """
     tracer = handler.settings.get('opentracing_tracer', opentracing.tracer)
 
+    span = None
     if tracer._trace_all:
         traced_attrs = handler.settings.get('opentracing_traced_attributes', [])
-        tracer._apply_tracing(handler, traced_attrs)
+        span = tracer._apply_tracing(handler, traced_attrs)
 
-    return func(*args, **kwargs)
+    # TODO: if we trace_all=False, should we still do scope management?
+    with tracer_stack_context():
+        if span is not None:
+            tracer._tracer.scope_manager.activate(span, False)
+
+        return func(*args, **kwargs)
+
 
 def on_finish(func, handler, args, kwargs):
     """

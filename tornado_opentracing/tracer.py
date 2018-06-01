@@ -1,6 +1,7 @@
 import functools
 
 import opentracing
+from opentracing.ext.scope_manager.tornado import tracer_stack_context
 
 
 class TornadoTracer(object):
@@ -41,7 +42,9 @@ class TornadoTracer(object):
                 span = self._apply_tracing(handler, list(attributes))
 
                 try:
-                    result = func(handler)
+                    with tracer_stack_context():
+                        self._tracer.scope_manager.activate(span, False)
+                        result = func(handler)
 
                     # if it has `add_done_callback` it's a Future,
                     # else, a normal method/function.
