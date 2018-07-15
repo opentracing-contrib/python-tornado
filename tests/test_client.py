@@ -132,5 +132,3 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
 
         tags = self.tracer.spans[0].tags
         self.assertEqual(tags.get('http.status_code', None), 500)
-        self.assertEqual(tags.get('error', None), 'true')
-        self.assertTrue(isinstance(tags.get('error.object', None), HTTPError))
