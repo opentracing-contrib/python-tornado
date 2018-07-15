@@ -15,8 +15,15 @@ setup(
     platforms='any',
     install_requires=[
         'tornado',
-        'opentracing==2.0.0'
+        'opentracing==2.0.0',
+        'wrapt',
     ],
+    extras_require={
+        'tests': [
+            'pytest>=2.7,<3',
+            'pytest-cov',
+        ],
+    },
     classifiers=[
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
