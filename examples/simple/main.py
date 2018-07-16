@@ -3,14 +3,15 @@ from tornado.web import Application, RequestHandler
 from tornado import gen
 
 import opentracing
-from opentracing.ext.scope_manager.tornado import TornadoScopeManager
+from opentracing.scope_managers.tornado import TornadoScopeManager
 import tornado_opentracing
 
 
 tornado_opentracing.init_tracing()
 
 # Your OpenTracing-compatible tracer here.
-tracer = opentracing.Tracer()
+tracer = opentracing.Tracer(scope_manager=TornadoScopeManager())
+
 
 class MainHandler(RequestHandler):
     def get(self):

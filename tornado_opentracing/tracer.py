@@ -1,7 +1,7 @@
 import functools
 
 import opentracing
-from opentracing.ext.scope_manager.tornado import tracer_stack_context
+from opentracing.scope_managers.tornado import tracer_stack_context
 
 
 class TornadoTracer(object):

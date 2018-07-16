@@ -1,7 +1,7 @@
 from tornado.web import HTTPError
 
 import opentracing
-from opentracing.ext.scope_manager.tornado import tracer_stack_context
+from opentracing.scope_managers.tornado import tracer_stack_context
 
 
 def execute(func, handler, args, kwargs):
