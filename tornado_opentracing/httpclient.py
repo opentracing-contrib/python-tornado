@@ -2,6 +2,8 @@ from tornado.httpclient import HTTPRequest, HTTPError
 
 import opentracing
 
+from ._constants import SCOPE_ATTR
+
 
 g_tracing_disabled = True
 g_client_tracer = None
@@ -51,32 +53,31 @@ def fetch_async(func, handler, args, kwargs):
     args, kwargs = _normalize_request(args, kwargs)
     request = args[0]
 
-    span = g_client_tracer.start_span(request.method)
-    span.set_tag('component', 'tornado')
-    span.set_tag('span.kind', 'client')
-    span.set_tag('http.url', request.url)
-    span.set_tag('http.method', request.method)
+    scope = g_client_tracer.start_active_span(request.method)
+    scope.span.set_tag('component', 'tornado')
+    scope.span.set_tag('span.kind', 'client')
+    scope.span.set_tag('http.url', request.url)
+    scope.span.set_tag('http.method', request.method)
 
-    g_client_tracer.inject(span.context,
+    g_client_tracer.inject(scope.span.context,
                            opentracing.Format.HTTP_HEADERS,
                            request.headers)
 
     if g_start_span_cb:
-        g_start_span_cb(span, request)
+        g_start_span_cb(scope.span, request)
 
-    # TODO - detect if we are running within a tracer_stack_context()?
-    # if not, create one? Or delegate that on the user?
     future = func(*args, **kwargs)
-    future._span = span
+    future._scope = scope
     future.add_done_callback(_finish_tracing_callback)
 
     return future
 
 
 def _finish_tracing_callback(future):
-    span = future._span
-    status_code = None
+    scope = future._scope
+    del future._scope
 
+    status_code = None
     exc = future.exception()
     if exc:
         # Tornado uses HTTPError to report some of the
@@ -90,12 +91,12 @@ def _finish_tracing_callback(future):
                 error = False
 
         if error:
-            span.set_tag('error', 'true')
-            span.set_tag('error.object', exc)
+            scope.span.set_tag('error', 'true')
+            scope.span.set_tag('error.object', exc)
     else:
         status_code = future.result().code
 
     if status_code is not None:
-        span.set_tag('http.status_code', status_code)
+        scope.span.set_tag('http.status_code', status_code)
 
-    span.finish()
+    scope.close()

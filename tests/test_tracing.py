@@ -18,6 +18,28 @@ class ErrorHandler(tornado.web.RequestHandler):
         raise ValueError('invalid input')
 
 
+class ScopeHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def do_something(self):
+        tracing = self.settings.get('opentracing_tracer')
+        with tracing._tracer.start_active_span('Child'):
+            tracing._tracer.active_span.set_tag('start', 0)
+            yield tornado.gen.sleep(0.0)
+            tracing._tracer.active_span.set_tag('end', 1)
+
+    @tornado.gen.coroutine
+    def get(self):
+        tracing = self.settings.get('opentracing_tracer')
+        span = tracing.get_span(self.request)
+        assert span is not None
+        assert tracing._tracer.active_span is span
+
+        yield self.do_something()
+
+        assert tracing._tracer.active_span is span
+        self.write('{}')
+
+
 def make_app(tracer, trace_all=None, trace_client=None,
              traced_attributes=None,start_span_cb=None):
 
@@ -37,6 +59,7 @@ def make_app(tracer, trace_all=None, trace_client=None,
         [
             ('/', MainHandler),
             ('/error', ErrorHandler),
+            ('/coroutine_scope', ScopeHandler),
         ],
         **settings
     )
@@ -84,6 +107,35 @@ class TestTracing(tornado.testing.AsyncHTTPTestCase):
         tags = spans[0].tags
         self.assertEqual(tags.get('error', None), 'true')
         self.assertTrue(isinstance(tags.get('error.object', None), ValueError))
+
+    def test_scope(self):
+        response = self.fetch('/coroutine_scope')
+        self.assertEqual(response.code, 200)
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 2)
+
+        child = spans[0]
+        self.assertTrue(child.finished)
+        self.assertEqual(child.operation_name, 'Child')
+        self.assertEqual(child.tags, {
+            'start': 0,
+            'end': 1,
+        })
+
+        parent = spans[1]
+        self.assertTrue(parent.finished)
+        self.assertEqual(parent.operation_name, 'ScopeHandler')
+        self.assertEqual(parent.tags, {
+            'component': 'tornado',
+            'http.url': '/coroutine_scope',
+            'http.method': 'GET',
+            'http.status_code': 200,
+        })
+
+        # Same trace.
+        self.assertEqual(child.context.trace_id, parent.context.trace_id)
+        self.assertEqual(child.parent_id, parent.context.span_id)
 
 
 class TestNoTraceAll(tornado.testing.AsyncHTTPTestCase):
