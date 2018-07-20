@@ -1,9 +1,14 @@
 import unittest
 
+from opentracing.mocktracer import MockTracer
 import tornado
 import tornado_opentracing
 
-from .dummies import DummyTracer
+
+class DummyTracer(object):
+    def __init__(self, tracer):
+        self._tracer = tracer
+
 
 class TestApi(unittest.TestCase):
     def setUp(self):
@@ -20,14 +25,14 @@ class TestApi(unittest.TestCase):
         self.assertTrue(getattr(tornado, '__opentracing_client_patch', False))
 
     def test_client_patch(self):
-        tracer = DummyTracer()
+        tracer = MockTracer()
         tornado_opentracing.init_client_tracing(tracer)
         self.assertFalse(getattr(tornado, '__opentracing_patch', False))
         self.assertTrue(getattr(tornado, '__opentracing_client_patch', False))
         self.assertEqual(tornado_opentracing.httpclient.g_client_tracer, tracer)
 
     def test_client_subtracer(self):
-        tracer = DummyTracer(with_subtracer=True)
+        tracer = DummyTracer(MockTracer())
         tornado_opentracing.init_client_tracing(tracer)
         self.assertFalse(getattr(tornado, '__opentracing_patch', False))
         self.assertTrue(getattr(tornado, '__opentracing_client_patch', False))
@@ -37,8 +42,14 @@ class TestApi(unittest.TestCase):
         def test_cb(span, request):
             pass
 
-        tornado_opentracing.init_client_tracing(DummyTracer(), start_span_cb=test_cb)
-        self.assertEqual(tornado_opentracing.httpclient.g_start_span_cb, test_cb)
+        tornado_opentracing.init_client_tracing(
+            MockTracer(),
+            start_span_cb=test_cb
+        )
+        self.assertEqual(
+            tornado_opentracing.httpclient.g_start_span_cb,
+            test_cb
+        )
 
     def test_client_tracer_none(self):
         with self.assertRaises(ValueError):
@@ -46,5 +57,5 @@ class TestApi(unittest.TestCase):
 
     def test_client_start_span_cb_invalid(self):
         with self.assertRaises(ValueError):
-            tornado_opentracing.init_client_tracing(DummyTracer(),
+            tornado_opentracing.init_client_tracing(MockTracer(),
                                                     start_span_cb=object())

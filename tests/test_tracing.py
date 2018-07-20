@@ -1,11 +1,11 @@
 import unittest
 
+from opentracing.mocktracer import MockTracer
+from opentracing.scope_managers.tornado import TornadoScopeManager
 import tornado.gen
 import tornado.web
 import tornado.testing
 import tornado_opentracing
-
-from .dummies import DummyTracer
 
 
 class MainHandler(tornado.web.RequestHandler):
@@ -16,6 +16,28 @@ class MainHandler(tornado.web.RequestHandler):
 class ErrorHandler(tornado.web.RequestHandler):
     def get(self):
         raise ValueError('invalid input')
+
+
+class ScopeHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def do_something(self):
+        tracing = self.settings.get('opentracing_tracer')
+        with tracing._tracer.start_active_span('Child'):
+            tracing._tracer.active_span.set_tag('start', 0)
+            yield tornado.gen.sleep(0.0)
+            tracing._tracer.active_span.set_tag('end', 1)
+
+    @tornado.gen.coroutine
+    def get(self):
+        tracing = self.settings.get('opentracing_tracer')
+        span = tracing.get_span(self.request)
+        assert span is not None
+        assert tracing._tracer.active_span is span
+
+        yield self.do_something()
+
+        assert tracing._tracer.active_span is span
+        self.write('{}')
 
 
 def make_app(tracer, trace_all=None, trace_client=None,
@@ -37,6 +59,7 @@ def make_app(tracer, trace_all=None, trace_client=None,
         [
             ('/', MainHandler),
             ('/error', ErrorHandler),
+            ('/coroutine_scope', ScopeHandler),
         ],
         **settings
     )
@@ -54,16 +77,18 @@ class TestTracing(tornado.testing.AsyncHTTPTestCase):
         super(TestTracing, self).tearDown()
 
     def get_app(self):
-        self.tracer = DummyTracer()
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer, trace_all=True)
 
     def test_simple(self):
         response = self.fetch('/')
         self.assertEqual(response.code, 200)
-        self.assertEqual(len(self.tracer.spans), 1)
-        self.assertTrue(self.tracer.spans[0].is_finished)
-        self.assertEqual(self.tracer.spans[0].operation_name, 'MainHandler')
-        self.assertEqual(self.tracer.spans[0].tags, {
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(spans[0].finished)
+        self.assertEqual(spans[0].operation_name, 'MainHandler')
+        self.assertEqual(spans[0].tags, {
             'component': 'tornado',
             'http.url': '/',
             'http.method': 'GET',
@@ -73,13 +98,44 @@ class TestTracing(tornado.testing.AsyncHTTPTestCase):
     def test_error(self):
         response = self.fetch('/error')
         self.assertEqual(response.code, 500)
-        self.assertEqual(len(self.tracer.spans), 1)
-        self.assertTrue(self.tracer.spans[0].is_finished)
-        self.assertEqual(self.tracer.spans[0].operation_name, 'ErrorHandler')
 
-        tags = self.tracer.spans[0].tags
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(spans[0].finished)
+        self.assertEqual(spans[0].operation_name, 'ErrorHandler')
+
+        tags = spans[0].tags
         self.assertEqual(tags.get('error', None), 'true')
         self.assertTrue(isinstance(tags.get('error.object', None), ValueError))
+
+    def test_scope(self):
+        response = self.fetch('/coroutine_scope')
+        self.assertEqual(response.code, 200)
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 2)
+
+        child = spans[0]
+        self.assertTrue(child.finished)
+        self.assertEqual(child.operation_name, 'Child')
+        self.assertEqual(child.tags, {
+            'start': 0,
+            'end': 1,
+        })
+
+        parent = spans[1]
+        self.assertTrue(parent.finished)
+        self.assertEqual(parent.operation_name, 'ScopeHandler')
+        self.assertEqual(parent.tags, {
+            'component': 'tornado',
+            'http.url': '/coroutine_scope',
+            'http.method': 'GET',
+            'http.status_code': 200,
+        })
+
+        # Same trace.
+        self.assertEqual(child.context.trace_id, parent.context.trace_id)
+        self.assertEqual(child.parent_id, parent.context.span_id)
 
 
 class TestNoTraceAll(tornado.testing.AsyncHTTPTestCase):
@@ -93,13 +149,15 @@ class TestNoTraceAll(tornado.testing.AsyncHTTPTestCase):
         super(TestNoTraceAll, self).tearDown()
 
     def get_app(self):
-        self.tracer = DummyTracer()
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer, trace_all=False)
 
     def test_simple(self):
         response = self.fetch('/')
         self.assertEqual(response.code, 200)
-        self.assertEqual(len(self.tracer.spans), 0)
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 0)
 
 
 class TestTracedAttributes(tornado.testing.AsyncHTTPTestCase):
@@ -113,7 +171,7 @@ class TestTracedAttributes(tornado.testing.AsyncHTTPTestCase):
         super(TestTracedAttributes, self).tearDown()
 
     def get_app(self):
-        self.tracer = DummyTracer()
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
                        trace_all=True,
                        traced_attributes=[
@@ -125,10 +183,12 @@ class TestTracedAttributes(tornado.testing.AsyncHTTPTestCase):
     def test_traced_attributes(self):
         response = self.fetch('/')
         self.assertEqual(response.code, 200)
-        self.assertEqual(len(self.tracer.spans), 1)
-        self.assertTrue(self.tracer.spans[0].is_finished)
-        self.assertEqual(self.tracer.spans[0].operation_name, 'MainHandler')
-        self.assertEqual(self.tracer.spans[0].tags, {
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(spans[0].finished)
+        self.assertEqual(spans[0].operation_name, 'MainHandler')
+        self.assertEqual(spans[0].tags, {
             'component': 'tornado',
             'http.url': '/',
             'http.method': 'GET',
@@ -154,7 +214,7 @@ class TestStartSpanCallback(tornado.testing.AsyncHTTPTestCase):
         span.set_tag('custom-tag', 'custom-value')
 
     def get_app(self):
-        self.tracer = DummyTracer()
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
                         trace_all=True,
                         start_span_cb=self.start_span_cb)
@@ -162,10 +222,12 @@ class TestStartSpanCallback(tornado.testing.AsyncHTTPTestCase):
     def test_start_span_cb(self):
         response = self.fetch('/')
         self.assertEqual(response.code, 200)
-        self.assertEqual(len(self.tracer.spans), 1)
-        self.assertTrue(self.tracer.spans[0].is_finished)
-        self.assertEqual(self.tracer.spans[0].operation_name, 'foo/GET')
-        self.assertEqual(self.tracer.spans[0].tags, {
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(spans[0].finished)
+        self.assertEqual(spans[0].operation_name, 'foo/GET')
+        self.assertEqual(spans[0].tags, {
             'component': 'not-tornado',
             'http.url': '/',
             'http.method': 'GET',
@@ -185,7 +247,7 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
         super(TestClient, self).tearDown()
 
     def get_app(self):
-        self.tracer = DummyTracer()
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
                         trace_all=False,
                         trace_client=True)
@@ -193,10 +255,12 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
     def test_simple(self):
         response = self.fetch('/')
         self.assertEqual(response.code, 200)
-        self.assertEqual(len(self.tracer.spans), 1)
-        self.assertTrue(self.tracer.spans[0].is_finished)
-        self.assertEqual(self.tracer.spans[0].operation_name, 'GET')
-        self.assertEqual(self.tracer.spans[0].tags, {
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(spans[0].finished)
+        self.assertEqual(spans[0].operation_name, 'GET')
+        self.assertEqual(spans[0].tags, {
             'component': 'tornado',
             'span.kind': 'client',
             'http.url': self.get_url('/'),
@@ -216,7 +280,7 @@ class TestClientCallback(tornado.testing.AsyncHTTPTestCase):
         super(TestClientCallback, self).tearDown()
 
     def get_app(self):
-        self.tracer = DummyTracer()
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
                         trace_all=False,
                         trace_client=True,
@@ -230,10 +294,12 @@ class TestClientCallback(tornado.testing.AsyncHTTPTestCase):
     def test_simple(self):
         response = self.fetch('/')
         self.assertEqual(response.code, 200)
-        self.assertEqual(len(self.tracer.spans), 1)
-        self.assertTrue(self.tracer.spans[0].is_finished)
-        self.assertEqual(self.tracer.spans[0].operation_name, 'foo/GET')
-        self.assertEqual(self.tracer.spans[0].tags, {
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(spans[0].finished)
+        self.assertEqual(spans[0].operation_name, 'foo/GET')
+        self.assertEqual(spans[0].tags, {
             'component': 'not-tornado',
             'span.kind': 'client',
             'http.url': self.get_url('/'),

@@ -1,6 +1,7 @@
 from tornado.web import HTTPError
 
 import opentracing
+from opentracing.scope_managers.tornado import tracer_stack_context
 
 
 def execute(func, handler, args, kwargs):
@@ -10,11 +11,13 @@ def execute(func, handler, args, kwargs):
     """
     tracer = handler.settings.get('opentracing_tracer', opentracing.tracer)
 
-    if tracer._trace_all:
-        traced_attrs = handler.settings.get('opentracing_traced_attributes', [])
-        tracer._apply_tracing(handler, traced_attrs)
+    with tracer_stack_context():
+        if tracer._trace_all:
+            attrs = handler.settings.get('opentracing_traced_attributes', [])
+            tracer._apply_tracing(handler, attrs)
 
-    return func(*args, **kwargs)
+        return func(*args, **kwargs)
+
 
 def on_finish(func, handler, args, kwargs):
     """
@@ -25,6 +28,7 @@ def on_finish(func, handler, args, kwargs):
     tracer._finish_tracing(handler)
 
     return func(*args, **kwargs)
+
 
 def log_exception(func, handler, args, kwargs):
     """

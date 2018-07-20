@@ -1,30 +1,34 @@
 import unittest
 
+from opentracing.mocktracer import MockTracer
+from opentracing.scope_managers.tornado import TornadoScopeManager
 import tornado.gen
 import tornado.web
 import tornado.testing
 import tornado_opentracing
 
-from .dummies import DummyTracer
 
-
-tracer = tornado_opentracing.TornadoTracer(DummyTracer())
+tracer = tornado_opentracing.TornadoTracer(MockTracer(TornadoScopeManager()))
 
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
+        # Not being traced.
+        assert tracer.get_span(self.request) is None
         self.write('{}')
 
 
 class DecoratedHandler(tornado.web.RequestHandler):
     @tracer.trace('protocol', 'doesntexist')
     def get(self):
+        assert tracer.get_span(self.request) is not None
         self.write('{}')
 
 
 class DecoratedErrorHandler(tornado.web.RequestHandler):
     @tracer.trace()
     def get(self):
+        assert tracer.get_span(self.request) is not None
         raise ValueError('invalid value')
 
 
@@ -44,6 +48,27 @@ class DecoratedCoroutineErrorHandler(tornado.web.RequestHandler):
         yield tornado.gen.sleep(0)
         raise ValueError('invalid value')
 
+class DecoratedCoroutineScopeHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def do_something(self):
+        with tracer._tracer.start_active_span('Child'):
+            tracer._tracer.active_span.set_tag('start', 0)
+            yield tornado.gen.sleep(0)
+            tracer._tracer.active_span.set_tag('end', 1)
+
+    @tracer.trace()
+    @tornado.gen.coroutine
+    def get(self):
+        span = tracer.get_span(self.request)
+        assert span is not None
+        assert tracer._tracer.active_span is span
+
+        yield self.do_something()
+
+        assert tracer._tracer.active_span is span
+        self.set_status(201)
+        self.write('{}')
+
 
 def make_app():
     app = tornado.web.Application(
@@ -53,6 +78,7 @@ def make_app():
             ('/decorated_error', DecoratedErrorHandler),
             ('/decorated_coroutine', DecoratedCoroutineHandler),
             ('/decorated_coroutine_error', DecoratedCoroutineErrorHandler),
+            ('/decorated_coroutine_scope', DecoratedCoroutineScopeHandler),
         ],
     )
     return app
@@ -60,7 +86,7 @@ def make_app():
 
 class TestDecorated(tornado.testing.AsyncHTTPTestCase):
     def tearDown(self):
-        tracer._tracer.clear()
+        tracer._tracer.reset()
         super(TestDecorated, self).tearDown()
 
     def get_app(self):
@@ -69,15 +95,17 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
     def test_no_traced(self):
         response = self.fetch('/')
         self.assertEqual(response.code, 200)
-        self.assertEqual(len(tracer._tracer.spans), 0)
+        self.assertEqual(len(tracer._tracer.finished_spans()), 0)
 
     def test_simple(self):
         response = self.fetch('/decorated')
         self.assertEqual(response.code, 200)
-        self.assertEqual(len(tracer._tracer.spans), 1)
-        self.assertTrue(tracer._tracer.spans[0].is_finished)
-        self.assertEqual(tracer._tracer.spans[0].operation_name, 'DecoratedHandler')
-        self.assertEqual(tracer._tracer.spans[0].tags, {
+
+        spans = tracer._tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(spans[0].finished)
+        self.assertEqual(spans[0].operation_name, 'DecoratedHandler')
+        self.assertEqual(spans[0].tags, {
             'component': 'tornado',
             'http.url': '/decorated',
             'http.method': 'GET',
@@ -88,21 +116,25 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
     def test_error(self):
         response = self.fetch('/decorated_error')
         self.assertEqual(response.code, 500)
-        self.assertEqual(len(tracer._tracer.spans), 1)
-        self.assertTrue(tracer._tracer.spans[0].is_finished)
-        self.assertEqual(tracer._tracer.spans[0].operation_name, 'DecoratedErrorHandler')
 
-        tags = tracer._tracer.spans[0].tags
+        spans = tracer._tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(spans[0].finished)
+        self.assertEqual(spans[0].operation_name, 'DecoratedErrorHandler')
+
+        tags = spans[0].tags
         self.assertEqual(tags.get('error', None), 'true')
         self.assertTrue(isinstance(tags.get('error.object', None), ValueError))
 
     def test_coroutine(self):
         response = self.fetch('/decorated_coroutine')
         self.assertEqual(response.code, 201)
-        self.assertEqual(len(tracer._tracer.spans), 1)
-        self.assertTrue(tracer._tracer.spans[0].is_finished)
-        self.assertEqual(tracer._tracer.spans[0].operation_name, 'DecoratedCoroutineHandler')
-        self.assertEqual(tracer._tracer.spans[0].tags, {
+
+        spans = tracer._tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(spans[0].finished)
+        self.assertEqual(spans[0].operation_name, 'DecoratedCoroutineHandler')
+        self.assertEqual(spans[0].tags, {
             'component': 'tornado',
             'http.url': '/decorated_coroutine',
             'http.method': 'GET',
@@ -113,19 +145,50 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
     def test_coroutine_error(self):
         response = self.fetch('/decorated_coroutine_error')
         self.assertEqual(response.code, 500)
-        self.assertEqual(len(tracer._tracer.spans), 1)
-        self.assertTrue(tracer._tracer.spans[0].is_finished)
-        self.assertEqual(tracer._tracer.spans[0].operation_name, 'DecoratedCoroutineErrorHandler')
 
-        tags = tracer._tracer.spans[0].tags
+        spans = tracer._tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(spans[0].finished)
+        self.assertEqual(spans[0].operation_name, 'DecoratedCoroutineErrorHandler')
+
+        tags = spans[0].tags
         self.assertEqual(tags.get('error', None), 'true')
         self.assertTrue(isinstance(tags.get('error.object', None), ValueError))
+
+    def test_coroutine_scope(self):
+        response = self.fetch('/decorated_coroutine_scope')
+        self.assertEqual(response.code, 201)
+
+        spans = tracer._tracer.finished_spans()
+        self.assertEqual(len(spans), 2)
+
+        child = spans[0]
+        self.assertTrue(child.finished)
+        self.assertEqual(child.operation_name, 'Child')
+        self.assertEqual(child.tags, {
+            'start': 0,
+            'end': 1,
+        })
+
+        parent = spans[1]
+        self.assertTrue(parent.finished)
+        self.assertEqual(parent.operation_name, 'DecoratedCoroutineScopeHandler')
+        self.assertEqual(parent.tags, {
+            'component': 'tornado',
+            'http.url': '/decorated_coroutine_scope',
+            'http.method': 'GET',
+            'http.status_code': 201,
+        })
+
+        # Same trace.
+        self.assertEqual(child.context.trace_id, parent.context.trace_id)
+        self.assertEqual(child.parent_id, parent.context.span_id)
 
 
 class TestClientIntegration(tornado.testing.AsyncHTTPTestCase):
     def tearDown(self):
         tornado_opentracing._unpatch_tornado_client()
-        tracer._tracer.clear()
+        tracer._tracer.reset()
         super(TestClientIntegration, self).tearDown()
 
     def get_app(self):
@@ -136,11 +199,13 @@ class TestClientIntegration(tornado.testing.AsyncHTTPTestCase):
 
         response = self.fetch('/decorated')
         self.assertEqual(response.code, 200)
-        self.assertEqual(len(tracer._tracer.spans), 2)
+
+        spans = tracer._tracer.finished_spans()
+        self.assertEqual(len(spans), 2)
 
         # Client
-        span = tracer._tracer.spans[0]
-        self.assertTrue(span.is_finished)
+        span = spans[1]
+        self.assertTrue(span.finished)
         self.assertEqual(span.operation_name, 'GET')
         self.assertEqual(span.tags, {
             'component': 'tornado',
@@ -151,8 +216,8 @@ class TestClientIntegration(tornado.testing.AsyncHTTPTestCase):
         })
 
         # Server
-        span2 = tracer._tracer.spans[1]
-        self.assertTrue(span2.is_finished)
+        span2 = spans[0]
+        self.assertTrue(span2.finished)
         self.assertEqual(span2.operation_name, 'DecoratedHandler')
         self.assertEqual(span2.tags, {
             'component': 'tornado',
@@ -162,9 +227,7 @@ class TestClientIntegration(tornado.testing.AsyncHTTPTestCase):
             'protocol': 'http',
         })
 
-        # Make sure the headers were injected/extracted,
-        # from the client to the server.
-        extracted_headers = tracer._tracer.extracted_headers
-        self.assertEqual(len(extracted_headers), 1)
-        self.assertEqual(extracted_headers[0].get('Ot-Format', None), 'http_headers')
-        self.assertEqual(extracted_headers[0].get('Ot-Headers', None), 'true')
+        # Make sure the context was propagated,
+        # and the client/server have the proper child_of relationship.
+        self.assertEqual(span.context.trace_id, span2.context.trace_id)
+        self.assertEqual(span.context.span_id, span2.parent_id)

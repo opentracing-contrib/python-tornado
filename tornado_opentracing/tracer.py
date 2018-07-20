@@ -1,6 +1,9 @@
 import functools
 
 import opentracing
+from opentracing.scope_managers.tornado import tracer_stack_context
+
+from ._constants import SCOPE_ATTR
 
 
 class TornadoTracer(object):
@@ -14,14 +17,14 @@ class TornadoTracer(object):
         self._trace_all = trace_all
         self._trace_client = trace_client
         self._start_span_cb = start_span_cb
-        self._current_spans = {}
 
     def get_span(self, request):
         '''
         @param request 
         Returns the span tracing this request
         '''
-        return self._current_spans.get(request, None)
+        scope = getattr(request, SCOPE_ATTR, None)
+        return None if scope is None else scope.span
 
     def trace(self, *attributes):
         '''
@@ -38,22 +41,25 @@ class TornadoTracer(object):
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
                 handler = args[0]
-                span = self._apply_tracing(handler, list(attributes))
 
-                try:
-                    result = func(handler)
+                with tracer_stack_context():
+                    try:
+                        self._apply_tracing(handler, list(attributes))
 
-                    # if it has `add_done_callback` it's a Future,
-                    # else, a normal method/function.
-                    if callable(getattr(result, 'add_done_callback', None)):
-                        result._request_handler = handler
-                        result.add_done_callback(self._finish_tracing_callback)
-                    else:
-                        self._finish_tracing(handler)
+                        # Run the actual function.
+                        result = func(handler)
 
-                except Exception as exc:
-                    self._finish_tracing(handler, error=exc)
-                    raise
+                        # if it has `add_done_callback` it's a Future,
+                        # else, a normal method/function.
+                        if callable(getattr(result, 'add_done_callback', None)):
+                            result._request_handler = handler
+                            result.add_done_callback(self._finish_tracing_callback)
+                        else:
+                            self._finish_tracing(handler)
+
+                    except Exception as exc:
+                        self._finish_tracing(handler, error=exc)
+                        raise
 
                 return result
 
@@ -83,40 +89,44 @@ class TornadoTracer(object):
         # start new span from trace info
         span = None
         try:
-            span_ctx = self._tracer.extract(opentracing.Format.HTTP_HEADERS, headers)
-            span = self._tracer.start_span(operation_name=operation_name, child_of=span_ctx)
-        except (opentracing.InvalidCarrierException, opentracing.SpanContextCorruptedException) as e:
-            span = self._tracer.start_span(operation_name=operation_name)
+            span_ctx = self._tracer.extract(opentracing.Format.HTTP_HEADERS,
+                                            headers)
+            scope = self._tracer.start_active_span(operation_name,
+                                                   child_of=span_ctx)
+        except (opentracing.InvalidCarrierException,
+                opentracing.SpanContextCorruptedException):
+            scope = self._tracer.start_active_span(operation_name)
 
         # add span to current spans 
-        self._current_spans[request] = span
+        setattr(request, SCOPE_ATTR, scope)
 
         # log any traced attributes
-        span.set_tag('component', 'tornado')
-        span.set_tag('http.method', request.method)
-        span.set_tag('http.url', request.uri)
+        scope.span.set_tag('component', 'tornado')
+        scope.span.set_tag('http.method', request.method)
+        scope.span.set_tag('http.url', request.uri)
 
         for attr in attributes:
             if hasattr(request, attr):
                 payload = str(getattr(request, attr))
                 if payload:
-                    span.set_tag(attr, payload)
+                    scope.span.set_tag(attr, payload)
 
         # invoke the start span callback, if any
         if self._start_span_cb is not None:
-            self._start_span_cb(span, request)
+            self._start_span_cb(scope.span, request)
 
-        return span
+        return scope
 
     def _finish_tracing(self, handler, error=None):
-        span = self._current_spans.pop(handler.request, None)
-        if span is None:
+        scope = getattr(handler.request, SCOPE_ATTR, None)
+        if scope is None:
             return
 
+        delattr(handler.request, SCOPE_ATTR)
+
         if error is not None:
-            span.set_tag('error', 'true')
-            span.set_tag('error.object', error)
+            scope.span.set_tag('error', 'true')
+            scope.span.set_tag('error.object', error)
 
-        span.set_tag('http.status_code', handler.get_status())
-
-        span.finish()
+        scope.span.set_tag('http.status_code', handler.get_status())
+        scope.close()
