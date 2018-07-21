@@ -52,8 +52,10 @@ class TornadoTracer(object):
                         # if it has `add_done_callback` it's a Future,
                         # else, a normal method/function.
                         if callable(getattr(result, 'add_done_callback', None)):
-                            result._request_handler = handler
-                            result.add_done_callback(self._finish_tracing_callback)
+                            callback = functools.partial(
+                                    self._finish_tracing_callback,
+                                    handler=handler)
+                            result.add_done_callback(callback)
                         else:
                             self._finish_tracing(handler)
 
@@ -70,11 +72,9 @@ class TornadoTracer(object):
         full_class_name = type(handler).__name__
         return full_class_name.rsplit('.')[-1] # package-less name.
 
-    def _finish_tracing_callback(self, future):
-        handler = getattr(future, '_request_handler', None)
-        if handler is not None:
-            error = future.exception()
-            self._finish_tracing(handler, error=error)
+    def _finish_tracing_callback(self, future, handler):
+        error = future.exception()
+        self._finish_tracing(handler, error=error)
 
     def _apply_tracing(self, handler, attributes):
         '''

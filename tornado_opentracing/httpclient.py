@@ -1,3 +1,5 @@
+import functools
+
 from tornado.httpclient import HTTPRequest, HTTPError
 
 import opentracing
@@ -67,15 +69,14 @@ def fetch_async(func, handler, args, kwargs):
         g_start_span_cb(scope.span, request)
 
     future = func(*args, **kwargs)
-    future._scope = scope
-    future.add_done_callback(_finish_tracing_callback)
+
+    callback = functools.partial(_finish_tracing_callback, scope=scope)
+    future.add_done_callback(callback)
 
     return future
 
 
-def _finish_tracing_callback(future):
-    scope = future._scope
-    del future._scope
+def _finish_tracing_callback(future, scope):
 
     status_code = None
     exc = future.exception()
