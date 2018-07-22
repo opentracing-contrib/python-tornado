@@ -6,10 +6,10 @@ from opentracing.scope_managers.tornado import tracer_stack_context
 from ._constants import SCOPE_ATTR
 
 
-class TornadoTracer(object):
+class TornadoTracing(object):
     '''
     @param tracer the OpenTracing tracer to be used
-    to trace requests using this TornadoTracer
+    to trace requests using this TornadoTracing
     '''
     def __init__(self, tracer, trace_all=False, trace_client=False,
                  start_span_cb=None):

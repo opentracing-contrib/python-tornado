@@ -8,32 +8,32 @@ import tornado.testing
 import tornado_opentracing
 
 
-tracer = tornado_opentracing.TornadoTracer(MockTracer(TornadoScopeManager()))
+tracing = tornado_opentracing.TornadoTracing(MockTracer(TornadoScopeManager()))
 
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
         # Not being traced.
-        assert tracer.get_span(self.request) is None
+        assert tracing.get_span(self.request) is None
         self.write('{}')
 
 
 class DecoratedHandler(tornado.web.RequestHandler):
-    @tracer.trace('protocol', 'doesntexist')
+    @tracing.trace('protocol', 'doesntexist')
     def get(self):
-        assert tracer.get_span(self.request) is not None
+        assert tracing.get_span(self.request) is not None
         self.write('{}')
 
 
 class DecoratedErrorHandler(tornado.web.RequestHandler):
-    @tracer.trace()
+    @tracing.trace()
     def get(self):
-        assert tracer.get_span(self.request) is not None
+        assert tracing.get_span(self.request) is not None
         raise ValueError('invalid value')
 
 
 class DecoratedCoroutineHandler(tornado.web.RequestHandler):
-    @tracer.trace('protocol', 'doesntexist')
+    @tracing.trace('protocol', 'doesntexist')
     @tornado.gen.coroutine
     def get(self):
         yield tornado.gen.sleep(0)
@@ -42,7 +42,7 @@ class DecoratedCoroutineHandler(tornado.web.RequestHandler):
 
 
 class DecoratedCoroutineErrorHandler(tornado.web.RequestHandler):
-    @tracer.trace()
+    @tracing.trace()
     @tornado.gen.coroutine
     def get(self):
         yield tornado.gen.sleep(0)
@@ -51,21 +51,21 @@ class DecoratedCoroutineErrorHandler(tornado.web.RequestHandler):
 class DecoratedCoroutineScopeHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def do_something(self):
-        with tracer._tracer.start_active_span('Child'):
-            tracer._tracer.active_span.set_tag('start', 0)
+        with tracing._tracer.start_active_span('Child'):
+            tracing._tracer.active_span.set_tag('start', 0)
             yield tornado.gen.sleep(0)
-            tracer._tracer.active_span.set_tag('end', 1)
+            tracing._tracer.active_span.set_tag('end', 1)
 
-    @tracer.trace()
+    @tracing.trace()
     @tornado.gen.coroutine
     def get(self):
-        span = tracer.get_span(self.request)
+        span = tracing.get_span(self.request)
         assert span is not None
-        assert tracer._tracer.active_span is span
+        assert tracing._tracer.active_span is span
 
         yield self.do_something()
 
-        assert tracer._tracer.active_span is span
+        assert tracing._tracer.active_span is span
         self.set_status(201)
         self.write('{}')
 
@@ -86,7 +86,7 @@ def make_app():
 
 class TestDecorated(tornado.testing.AsyncHTTPTestCase):
     def tearDown(self):
-        tracer._tracer.reset()
+        tracing._tracer.reset()
         super(TestDecorated, self).tearDown()
 
     def get_app(self):
@@ -95,13 +95,13 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
     def test_no_traced(self):
         response = self.fetch('/')
         self.assertEqual(response.code, 200)
-        self.assertEqual(len(tracer._tracer.finished_spans()), 0)
+        self.assertEqual(len(tracing._tracer.finished_spans()), 0)
 
     def test_simple(self):
         response = self.fetch('/decorated')
         self.assertEqual(response.code, 200)
 
-        spans = tracer._tracer.finished_spans()
+        spans = tracing._tracer.finished_spans()
         self.assertEqual(len(spans), 1)
         self.assertTrue(spans[0].finished)
         self.assertEqual(spans[0].operation_name, 'DecoratedHandler')
@@ -117,7 +117,7 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
         response = self.fetch('/decorated_error')
         self.assertEqual(response.code, 500)
 
-        spans = tracer._tracer.finished_spans()
+        spans = tracing._tracer.finished_spans()
         self.assertEqual(len(spans), 1)
         self.assertTrue(spans[0].finished)
         self.assertEqual(spans[0].operation_name, 'DecoratedErrorHandler')
@@ -130,7 +130,7 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
         response = self.fetch('/decorated_coroutine')
         self.assertEqual(response.code, 201)
 
-        spans = tracer._tracer.finished_spans()
+        spans = tracing._tracer.finished_spans()
         self.assertEqual(len(spans), 1)
         self.assertTrue(spans[0].finished)
         self.assertEqual(spans[0].operation_name, 'DecoratedCoroutineHandler')
@@ -146,7 +146,7 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
         response = self.fetch('/decorated_coroutine_error')
         self.assertEqual(response.code, 500)
 
-        spans = tracer._tracer.finished_spans()
+        spans = tracing._tracer.finished_spans()
         self.assertEqual(len(spans), 1)
         self.assertTrue(spans[0].finished)
         self.assertEqual(spans[0].operation_name, 'DecoratedCoroutineErrorHandler')
@@ -159,7 +159,7 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
         response = self.fetch('/decorated_coroutine_scope')
         self.assertEqual(response.code, 201)
 
-        spans = tracer._tracer.finished_spans()
+        spans = tracing._tracer.finished_spans()
         self.assertEqual(len(spans), 2)
 
         child = spans[0]
@@ -188,19 +188,19 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
 class TestClientIntegration(tornado.testing.AsyncHTTPTestCase):
     def tearDown(self):
         tornado_opentracing._unpatch_tornado_client()
-        tracer._tracer.reset()
+        tracing._tracer.reset()
         super(TestClientIntegration, self).tearDown()
 
     def get_app(self):
         return make_app()
 
     def test_simple(self):
-        tornado_opentracing.init_client_tracing(tracer)
+        tornado_opentracing.init_client_tracing(tracing)
 
         response = self.fetch('/decorated')
         self.assertEqual(response.code, 200)
 
-        spans = tracer._tracer.finished_spans()
+        spans = tracing._tracer.finished_spans()
         self.assertEqual(len(spans), 2)
 
         # Client

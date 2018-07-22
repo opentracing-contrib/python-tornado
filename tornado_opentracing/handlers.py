@@ -9,12 +9,12 @@ def execute(func, handler, args, kwargs):
     Wrap the handler ``_execute`` method to trace incoming requests,
     extracting the context from the headers, if available.
     """
-    tracer = handler.settings.get('opentracing_tracer', opentracing.tracer)
+    tracing = handler.settings.get('opentracing_tracing')
 
     with tracer_stack_context():
-        if tracer._trace_all:
+        if tracing._trace_all:
             attrs = handler.settings.get('opentracing_traced_attributes', [])
-            tracer._apply_tracing(handler, attrs)
+            tracing._apply_tracing(handler, attrs)
 
         return func(*args, **kwargs)
 
@@ -24,8 +24,8 @@ def on_finish(func, handler, args, kwargs):
     Wrap the handler ``on_finish`` method to finish the Span for the
     given request, if available.
     """
-    tracer = handler.settings.get('opentracing_tracer', opentracing.tracer)
-    tracer._finish_tracing(handler)
+    tracing = handler.settings.get('opentracing_tracing')
+    tracing._finish_tracing(handler)
 
     return func(*args, **kwargs)
 
@@ -41,8 +41,8 @@ def log_exception(func, handler, args, kwargs):
     if value is None:
         return func(*args, **kwargs)
 
-    tracer = handler.settings.get('opentracing_tracer')
+    tracing = handler.settings.get('opentracing_tracing')
     if not isinstance(value, HTTPError) or 500 <= value.status_code <= 599:
-        tracer._finish_tracing(handler, error=value)
+        tracing._finish_tracing(handler, error=value)
 
     return func(*args, **kwargs)

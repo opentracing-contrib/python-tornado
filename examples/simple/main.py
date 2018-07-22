@@ -33,7 +33,7 @@ app = Application([
         (r'/', MainHandler),
         (r'/story/([0-9]+)', StoryHandler),
     ],
-    opentracing_tracer=tornado_opentracing.TornadoTracer(tracer),
+    opentracing_tracing=tornado_opentracing.TornadoTracing(tracer),
     opentracing_trace_all=True,
     opentracing_traced_attributes=['protocol', 'method'],
 )

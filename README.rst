@@ -33,7 +33,7 @@ In order to implement tracing in your system (for all the requests), add the fol
     # OpenTracing settings
     app = Application(
         ''' Other parameters here '''
-        opentracing_tracer=tornado_opentracing.TornadoTracer(some_opentracing_tracer),
+        opentracing_tracing=tornado_opentracing.TornadoTracing(some_opentracing_tracer),
         opentracing_trace_all=True, # defaults to False
         opentracing_trace_client=True, # AsyncHTTPClient tracing, defaults to False
         opentracing_traced_attributes=['method'], # only valid if `trace all` == True
@@ -61,15 +61,15 @@ Tracing requires tracing to be set up before ``Application`` is created through 
 Tracing Individual Requests
 ===========================
 
-If you don't want to trace all requests to your site, then you can use function decorators to trace individual functions. This can be done by managing a globally unique ``TornadoTracer`` object yourself, and adding the following lines of code to any get/post/put/delete function of your ``RequestHandler`` sub-classes:
+If you don't want to trace all requests to your site, then you can use function decorators to trace individual functions. This can be done by managing a globally unique ``TornadoTracing`` object yourself, and adding the following lines of code to any get/post/put/delete function of your ``RequestHandler`` sub-classes:
 
 .. code-block:: python
 
-    tracer = TornadoTracer(some_opentracing_tracer)
+    tracing = TornadoTracing(some_opentracing_tracer)
 
     class MyRequestHandler(tornado.web.RequestHandler):
         # put the decorator before @tornado.gen.coroutine, if used
-        @tracer.trace(['uri', 'method']) # optionally pass a list of traced attributes
+        @tracing.trace(['uri', 'method']) # optionally pass a list of traced attributes
         def get(self):
             ... # do some stuff
 
@@ -87,7 +87,7 @@ For applications using only the http client (no ``tornado.web`` usage), client t
     tornado_opentracing.init_client_tracing(tracer)
 
 
-``init_client_tracing`` takes an OpenTracing-compatible tracer, and can optionally take a ``start_span_cb`` parameter as callback. This call is not required when required when using ``trace_all`` with the ``init_tracing`` initialization, but is required when the user handles the ``tracer`` and uses the ``tracer.trace()`` decoration.
+``init_client_tracing`` takes an OpenTracing-compatible tracer, and can optionally take a ``start_span_cb`` parameter as callback. This call is not required when required when using ``trace_all`` with the ``init_tracing`` initialization, but is required when the user handles the ``tracer`` and uses the ``tracing.trace()`` decoration.
 
 Examples
 ========

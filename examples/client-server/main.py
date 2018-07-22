@@ -13,18 +13,18 @@ def client_start_span_cb(span, request):
 
 
 # Pass your OpenTracing-compatible tracer here.
-tracer = tornado_opentracing.TornadoTracer(opentracing.tracer)
+tracing = tornado_opentracing.TornadoTracing(opentracing.tracer)
 
 # Since we are not using the global patching, we need to
 # manually initialize the client.
 tornado_opentracing.init_client_tracing(
-    tracer,
+    opentracing.tracer,
     start_span_cb=client_start_span_cb
 )
 
 
 class ClientLogHandler(RequestHandler):
-    @tracer.trace()
+    @tracing.trace()
     @gen.coroutine
     def get(self):
         yield AsyncHTTPClient().fetch('http://127.0.0.1:8080/server/log')
@@ -32,7 +32,7 @@ class ClientLogHandler(RequestHandler):
 
 
 class ClientChildSpanHandler(RequestHandler):
-    @tracer.trace()
+    @tracing.trace()
     @gen.coroutine
     def get(self):
         yield AsyncHTTPClient().fetch('http://127.0.0.1:8080/server/childspan')
@@ -42,18 +42,18 @@ class ClientChildSpanHandler(RequestHandler):
 
 
 class ServerLogHandler(RequestHandler):
-    @tracer.trace()
+    @tracing.trace()
     def get(self):
-        span = tracer.get_span(self.request)
+        span = tracing.get_span(self.request)
         span.log_event('Hello, world!')
         self.write({})
 
 
 class ServerChildSpanHandler(RequestHandler):
-    @tracer.trace()
+    @tracing.trace()
     def get(self):
-        span = tracer.get_span(self.request)
-        with tracer._tracer.start_span('child_span', child_of=span.context):
+        span = tracing.get_span(self.request)
+        with tracing._tracer.start_span('child_span', child_of=span.context):
             self.write({})
 
 
@@ -64,7 +64,7 @@ if __name__ == '__main__':
             (r'/server/log', ServerLogHandler),
             (r'/server/childspan', ServerChildSpanHandler),
         ],
-        opentracing_tracer=tornado_opentracing.TornadoTracer(tracer),
+        opentracing_tracing=tornado_opentracing.TornadoTracing(opentracing.tracer),
         opentracing_trace_all=True,
         opentracing_trace_client=True,
     )

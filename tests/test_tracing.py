@@ -21,7 +21,7 @@ class ErrorHandler(tornado.web.RequestHandler):
 class ScopeHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def do_something(self):
-        tracing = self.settings.get('opentracing_tracer')
+        tracing = self.settings.get('opentracing_tracing')
         with tracing._tracer.start_active_span('Child'):
             tracing._tracer.active_span.set_tag('start', 0)
             yield tornado.gen.sleep(0.0)
@@ -29,7 +29,7 @@ class ScopeHandler(tornado.web.RequestHandler):
 
     @tornado.gen.coroutine
     def get(self):
-        tracing = self.settings.get('opentracing_tracer')
+        tracing = self.settings.get('opentracing_tracing')
         span = tracing.get_span(self.request)
         assert span is not None
         assert tracing._tracer.active_span is span
@@ -44,7 +44,7 @@ def make_app(tracer, trace_all=None, trace_client=None,
              traced_attributes=None,start_span_cb=None):
 
     settings = {
-        'opentracing_tracer': tornado_opentracing.TornadoTracer(tracer)
+        'opentracing_tracing': tornado_opentracing.TornadoTracing(tracer)
     }
     if trace_all is not None:
         settings['opentracing_trace_all'] = trace_all

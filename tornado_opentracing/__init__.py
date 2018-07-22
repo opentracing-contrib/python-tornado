@@ -3,7 +3,7 @@ import tornado
 from wrapt import wrap_function_wrapper as wrap_function, ObjectProxy
 
 from . import application, handlers, httpclient
-from .tracer import TornadoTracer
+from .tracing import TornadoTracing
 
 
 def init_tracing():
