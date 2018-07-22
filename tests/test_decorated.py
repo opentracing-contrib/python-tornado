@@ -70,7 +70,12 @@ class DecoratedCoroutineScopeHandler(tornado.web.RequestHandler):
         self.write('{}')
 
 
-def make_app():
+def make_app(trace_all=False):
+    settings = {}
+    if trace_all:
+        settings['opentracing_tracing'] = tracing
+        settings['opentracing_trace_all'] = True
+
     app = tornado.web.Application(
         [
             ('/', MainHandler),
@@ -80,6 +85,7 @@ def make_app():
             ('/decorated_coroutine_error', DecoratedCoroutineErrorHandler),
             ('/decorated_coroutine_scope', DecoratedCoroutineScopeHandler),
         ],
+        **settings
     )
     return app
 
@@ -183,6 +189,33 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
         # Same trace.
         self.assertEqual(child.context.trace_id, parent.context.trace_id)
         self.assertEqual(child.parent_id, parent.context.span_id)
+
+
+class TestDecoratedAndTraceAll(tornado.testing.AsyncHTTPTestCase):
+    def setUp(self):
+        self._prev_trace_all = tracing._trace_all
+        tornado_opentracing.init_tracing()
+        super(TestDecoratedAndTraceAll, self).setUp()
+
+    def tearDown(self):
+        tracing.tracer.reset()
+        tracing._trace_all = self._prev_trace_all
+        tornado_opentracing._unpatch_tornado()
+        tornado_opentracing._unpatch_tornado_client()
+        super(TestDecoratedAndTraceAll, self).tearDown()
+
+    def get_app(self):
+        return make_app(trace_all=True)
+
+    def test_only_one_span(self):
+        # Even though trace_all=True and we are decorating
+        # this handler, we should trace it only ONCE.
+        response = self.fetch('/decorated')
+        self.assertEqual(response.code, 200)
+
+        spans = tracing.tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(spans[0].finished)
 
 
 class TestClientIntegration(tornado.testing.AsyncHTTPTestCase):

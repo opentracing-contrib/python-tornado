@@ -1,4 +1,5 @@
 import functools
+import wrapt
 
 import opentracing
 from opentracing.scope_managers.tornado import tracer_stack_context
@@ -37,40 +38,38 @@ class TornadoTracing(object):
         @param attributes any number of request attributes
         (strings) to be set as tags on the created span
         '''
-        def decorator(func):
+
+        @wrapt.decorator
+        def wrapper(wrapped, instance, args, kwargs):
             if self._trace_all:
-                return func
+                return wrapped(*args, **kwargs)
 
-            # otherwise, execute the decorator
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                handler = args[0]
+            handler = instance
 
-                with tracer_stack_context():
-                    try:
-                        self._apply_tracing(handler, list(attributes))
+            with tracer_stack_context():
+                try:
+                    self._apply_tracing(handler, list(attributes))
 
-                        # Run the actual function.
-                        result = func(handler)
+                    # Run the actual function.
+                    result = wrapped(*args, **kwargs)
 
-                        # if it has `add_done_callback` it's a Future,
-                        # else, a normal method/function.
-                        if callable(getattr(result, 'add_done_callback', None)):
-                            callback = functools.partial(
-                                    self._finish_tracing_callback,
-                                    handler=handler)
-                            result.add_done_callback(callback)
-                        else:
-                            self._finish_tracing(handler)
+                    # if it has `add_done_callback` it's a Future,
+                    # else, a normal method/function.
+                    if callable(getattr(result, 'add_done_callback', None)):
+                        callback = functools.partial(
+                                self._finish_tracing_callback,
+                                handler=handler)
+                        result.add_done_callback(callback)
+                    else:
+                        self._finish_tracing(handler)
 
-                    except Exception as exc:
-                        self._finish_tracing(handler, error=exc)
-                        raise
+                except Exception as exc:
+                    self._finish_tracing(handler, error=exc)
+                    raise
 
-                return result
+            return result
 
-            return wrapper
-        return decorator
+        return wrapper
 
     def _get_operation_name(self, handler):
         full_class_name = type(handler).__name__
