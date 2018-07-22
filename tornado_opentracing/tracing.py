@@ -18,6 +18,10 @@ class TornadoTracing(object):
         self._trace_client = trace_client
         self._start_span_cb = start_span_cb
 
+    @property
+    def tracer(self):
+        return self._tracer
+
     def get_span(self, request):
         '''
         @param request 

@@ -53,7 +53,7 @@ class ServerChildSpanHandler(RequestHandler):
     @tracing.trace()
     def get(self):
         span = tracing.get_span(self.request)
-        with tracing._tracer.start_span('child_span', child_of=span.context):
+        with tracing.tracer.start_span('child_span', child_of=span.context):
             self.write({})
 
 
