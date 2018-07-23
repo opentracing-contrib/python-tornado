@@ -1,6 +1,7 @@
 import functools
 
 from tornado.httpclient import HTTPRequest, HTTPError
+from tornado.stack_context import wrap as wrap_with_stack_context
 
 import opentracing
 
@@ -70,8 +71,10 @@ def fetch_async(func, handler, args, kwargs):
 
     future = func(*args, **kwargs)
 
+    # Finish the Span when the Future is done, making
+    # sure the StackContext is restored (it's not by default).
     callback = functools.partial(_finish_tracing_callback, scope=scope)
-    future.add_done_callback(callback)
+    future.add_done_callback(wrap_with_stack_context(callback))
 
     return future
 

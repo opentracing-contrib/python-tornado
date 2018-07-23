@@ -2,6 +2,7 @@ import unittest
 
 from opentracing.mocktracer import MockTracer
 from opentracing.scope_managers.tornado import TornadoScopeManager
+from opentracing.scope_managers.tornado import tracer_stack_context
 import tornado.gen
 import tornado.web
 import tornado.testing
@@ -253,7 +254,13 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
                         trace_client=True)
 
     def test_simple(self):
-        response = self.fetch('/')
+        # wait() outside track_stack_context(),
+        # to make sure the *entire* request has it propagated
+        # properly.
+        with tracer_stack_context():
+            self.http_client.fetch(self.get_url('/'), self.stop)
+
+        response = self.wait()
         self.assertEqual(response.code, 200)
 
         spans = self.tracer.finished_spans()
@@ -292,7 +299,10 @@ class TestClientCallback(tornado.testing.AsyncHTTPTestCase):
         span.set_tag('custom-tag', 'custom-value')
 
     def test_simple(self):
-        response = self.fetch('/')
+        with tracer_stack_context():
+            self.http_client.fetch(self.get_url('/'), self.stop)
+
+        response = self.wait()
         self.assertEqual(response.code, 200)
 
         spans = self.tracer.finished_spans()

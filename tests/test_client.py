@@ -2,6 +2,7 @@ import unittest
 
 from opentracing.mocktracer import MockTracer
 from opentracing.scope_managers.tornado import TornadoScopeManager
+from opentracing.scope_managers.tornado import tracer_stack_context
 import tornado.gen
 from tornado.httpclient import HTTPError, HTTPRequest
 import tornado.web
@@ -48,7 +49,10 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
     def test_simple(self):
         tornado_opentracing.init_client_tracing(self.tracer)
 
-        response = self.fetch('/')
+        with tracer_stack_context():
+            self.http_client.fetch(self.get_url('/'), self.stop)
+
+        response = self.wait()
         self.assertEqual(response.code, 200)
 
         spans = self.tracer.finished_spans()
@@ -71,7 +75,10 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
         tornado_opentracing.init_client_tracing(self.tracer,
                                                 start_span_cb=test_cb)
 
-        response = self.fetch('/')
+        with tracer_stack_context():
+            self.http_client.fetch(self.get_url('/'), self.stop)
+
+        response = self.wait()
         self.assertEqual(response.code, 200)
 
         spans = self.tracer.finished_spans()
@@ -89,11 +96,12 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
     def test_explicit_parameters(self):
         tornado_opentracing.init_client_tracing(self.tracer)
 
-        self.http_client.fetch(self.get_url('/error'),
-                               self.stop,
-                               raise_error=False,
-                               method='POST',
-                               body='')
+        with tracer_stack_context():
+            self.http_client.fetch(self.get_url('/error'),
+                                   self.stop,
+                                   raise_error=False,
+                                   method='POST',
+                                   body='')
         response = self.wait()
         self.assertEqual(response.code, 500)
 
@@ -112,7 +120,9 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
     def test_request_obj(self):
         tornado_opentracing.init_client_tracing(self.tracer)
 
-        self.http_client.fetch(HTTPRequest(self.get_url('/')), self.stop)
+        with tracer_stack_context():
+            self.http_client.fetch(HTTPRequest(self.get_url('/')), self.stop)
+
         response = self.wait()
 
         self.assertEqual(response.code, 200)
@@ -132,7 +142,10 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
     def test_server_error(self):
         tornado_opentracing.init_client_tracing(self.tracer)
 
-        response = self.fetch('/error')
+        with tracer_stack_context():
+            self.http_client.fetch(self.get_url('/error'), self.stop)
+
+        response = self.wait()
         self.assertEqual(response.code, 500)
 
         spans = self.tracer.finished_spans()

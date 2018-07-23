@@ -4,6 +4,7 @@ from tornado.web import Application, RequestHandler
 from tornado import gen
 
 import opentracing
+from opentracing.scope_managers.tornado import TornadoScopeManager
 import tornado_opentracing
 
 
@@ -12,11 +13,13 @@ def client_start_span_cb(span, request):
     span.set_tag('headers', request.headers)
 
 
-# Pass your OpenTracing-compatible tracer here.
+# Pass your OpenTracing-compatible tracer here
+# using TornadoScopeManager.
 tracing = tornado_opentracing.TornadoTracing(opentracing.tracer)
 
-# Since we are not using the global patching, we need to
-# manually initialize the client.
+# Since we are not doing a full tornado_opentracing.init_tracing(),
+# we need to manually call init_client_tracing() if we want to do
+# HTTP client tracing too.
 tornado_opentracing.init_client_tracing(
     opentracing.tracer,
     start_span_cb=client_start_span_cb
@@ -44,16 +47,17 @@ class ClientChildSpanHandler(RequestHandler):
 class ServerLogHandler(RequestHandler):
     @tracing.trace()
     def get(self):
-        span = tracing.get_span(self.request)
-        span.log_event('Hello, world!')
+        # Alternatively, TornadoTracing.get_span(self.request)
+        # can be used to fetch this request's Span.
+        tracing.tracer.active_span.log_event('Hello, world!')
         self.write({})
 
 
 class ServerChildSpanHandler(RequestHandler):
     @tracing.trace()
     def get(self):
-        span = tracing.get_span(self.request)
-        with tracing.tracer.start_span('child_span', child_of=span.context):
+        # Will implicitly be child of the incoming request Span.
+        with tracing.tracer.start_active_span('extra_child_span'):
             self.write({})
 
 
@@ -64,9 +68,6 @@ if __name__ == '__main__':
             (r'/server/log', ServerLogHandler),
             (r'/server/childspan', ServerChildSpanHandler),
         ],
-        opentracing_tracing=tornado_opentracing.TornadoTracing(opentracing.tracer),
-        opentracing_trace_all=True,
-        opentracing_trace_client=True,
     )
     app.listen(8080)
     IOLoop.current().start()
