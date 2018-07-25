@@ -231,9 +231,6 @@ class TestClientIntegration(tornado.testing.AsyncHTTPTestCase):
     def test_simple(self):
         tornado_opentracing.init_client_tracing(tracing)
 
-        # wait() outside track_stack_context(),
-        # to make sure the *entire* request has it propagated
-        # properly.
         with tracer_stack_context():
             self.http_client.fetch(self.get_url('/decorated'), self.stop)
 

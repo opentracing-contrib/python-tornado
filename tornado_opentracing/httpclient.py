@@ -1,7 +1,6 @@
 import functools
 
 from tornado.httpclient import HTTPRequest, HTTPError
-from tornado.stack_context import wrap as wrap_with_stack_context
 
 import opentracing
 
@@ -56,30 +55,30 @@ def fetch_async(func, handler, args, kwargs):
     args, kwargs = _normalize_request(args, kwargs)
     request = args[0]
 
-    scope = g_client_tracer.start_active_span(request.method)
-    scope.span.set_tag('component', 'tornado')
-    scope.span.set_tag('span.kind', 'client')
-    scope.span.set_tag('http.url', request.url)
-    scope.span.set_tag('http.method', request.method)
+    span = g_client_tracer.start_span(request.method)
+    span.set_tag('component', 'tornado')
+    span.set_tag('span.kind', 'client')
+    span.set_tag('http.url', request.url)
+    span.set_tag('http.method', request.method)
 
-    g_client_tracer.inject(scope.span.context,
+    g_client_tracer.inject(span.context,
                            opentracing.Format.HTTP_HEADERS,
                            request.headers)
 
     if g_start_span_cb:
-        g_start_span_cb(scope.span, request)
+        g_start_span_cb(span, request)
 
     future = func(*args, **kwargs)
 
     # Finish the Span when the Future is done, making
     # sure the StackContext is restored (it's not by default).
-    callback = functools.partial(_finish_tracing_callback, scope=scope)
-    future.add_done_callback(wrap_with_stack_context(callback))
+    callback = functools.partial(_finish_tracing_callback, span=span)
+    future.add_done_callback(callback)
 
     return future
 
 
-def _finish_tracing_callback(future, scope):
+def _finish_tracing_callback(future, span):
 
     status_code = None
     exc = future.exception()
@@ -95,12 +94,12 @@ def _finish_tracing_callback(future, scope):
                 error = False
 
         if error:
-            scope.span.set_tag('error', 'true')
-            scope.span.set_tag('error.object', exc)
+            span.set_tag('error', 'true')
+            span.set_tag('error.object', exc)
     else:
         status_code = future.result().code
 
     if status_code is not None:
-        scope.span.set_tag('http.status_code', status_code)
+        span.set_tag('http.status_code', status_code)
 
-    scope.close()
+    span.finish()

@@ -254,9 +254,6 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
                         trace_client=True)
 
     def test_simple(self):
-        # wait() outside track_stack_context(),
-        # to make sure the *entire* request has it propagated
-        # properly.
         with tracer_stack_context():
             self.http_client.fetch(self.get_url('/'), self.stop)
 
