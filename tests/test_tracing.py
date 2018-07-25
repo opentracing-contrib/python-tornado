@@ -73,8 +73,8 @@ class TestTracing(tornado.testing.AsyncHTTPTestCase):
         super(TestTracing, self).setUp()
 
     def tearDown(self):
-        tornado_opentracing._unpatch_tornado()
-        tornado_opentracing._unpatch_tornado_client()
+        tornado_opentracing.initialization._unpatch_tornado()
+        tornado_opentracing.initialization._unpatch_tornado_client()
         super(TestTracing, self).tearDown()
 
     def get_app(self):
@@ -145,8 +145,8 @@ class TestNoTraceAll(tornado.testing.AsyncHTTPTestCase):
         super(TestNoTraceAll, self).setUp()
 
     def tearDown(self):
-        tornado_opentracing._unpatch_tornado()
-        tornado_opentracing._unpatch_tornado_client()
+        tornado_opentracing.initialization._unpatch_tornado()
+        tornado_opentracing.initialization._unpatch_tornado_client()
         super(TestNoTraceAll, self).tearDown()
 
     def get_app(self):
@@ -167,8 +167,8 @@ class TestTracedAttributes(tornado.testing.AsyncHTTPTestCase):
         super(TestTracedAttributes, self).setUp()
 
     def tearDown(self):
-        tornado_opentracing._unpatch_tornado()
-        tornado_opentracing._unpatch_tornado_client()
+        tornado_opentracing.initialization._unpatch_tornado()
+        tornado_opentracing.initialization._unpatch_tornado_client()
         super(TestTracedAttributes, self).tearDown()
 
     def get_app(self):
@@ -205,8 +205,8 @@ class TestStartSpanCallback(tornado.testing.AsyncHTTPTestCase):
         super(TestStartSpanCallback, self).setUp()
 
     def tearDown(self):
-        tornado_opentracing._unpatch_tornado()
-        tornado_opentracing._unpatch_tornado_client()
+        tornado_opentracing.initialization._unpatch_tornado()
+        tornado_opentracing.initialization._unpatch_tornado_client()
         super(TestStartSpanCallback, self).tearDown()
 
     def start_span_cb(self, span, request):
@@ -243,8 +243,8 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
         super(TestClient, self).setUp()
 
     def tearDown(self):
-        tornado_opentracing._unpatch_tornado()
-        tornado_opentracing._unpatch_tornado_client()
+        tornado_opentracing.initialization._unpatch_tornado()
+        tornado_opentracing.initialization._unpatch_tornado_client()
         super(TestClient, self).tearDown()
 
     def get_app(self):
@@ -279,8 +279,8 @@ class TestClientCallback(tornado.testing.AsyncHTTPTestCase):
         super(TestClientCallback, self).setUp()
 
     def tearDown(self):
-        tornado_opentracing._unpatch_tornado()
-        tornado_opentracing._unpatch_tornado_client()
+        tornado_opentracing.initialization._unpatch_tornado()
+        tornado_opentracing.initialization._unpatch_tornado_client()
         super(TestClientCallback, self).tearDown()
 
     def get_app(self):

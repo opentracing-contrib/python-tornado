@@ -201,8 +201,8 @@ class TestDecoratedAndTraceAll(tornado.testing.AsyncHTTPTestCase):
     def tearDown(self):
         tracing.tracer.reset()
         tracing._trace_all = self._prev_trace_all
-        tornado_opentracing._unpatch_tornado()
-        tornado_opentracing._unpatch_tornado_client()
+        tornado_opentracing.initialization._unpatch_tornado()
+        tornado_opentracing.initialization._unpatch_tornado_client()
         super(TestDecoratedAndTraceAll, self).tearDown()
 
     def get_app(self):
@@ -221,7 +221,7 @@ class TestDecoratedAndTraceAll(tornado.testing.AsyncHTTPTestCase):
 
 class TestClientIntegration(tornado.testing.AsyncHTTPTestCase):
     def tearDown(self):
-        tornado_opentracing._unpatch_tornado_client()
+        tornado_opentracing.initialization._unpatch_tornado_client()
         tracing.tracer.reset()
         super(TestClientIntegration, self).tearDown()
 

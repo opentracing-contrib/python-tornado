@@ -40,7 +40,7 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
         super(TestClient, self).setUp()
 
     def tearDown(self):
-        tornado_opentracing._unpatch_tornado_client()
+        tornado_opentracing.initialization._unpatch_tornado_client()
         super(TestClient, self).tearDown()
 
     def get_app(self):

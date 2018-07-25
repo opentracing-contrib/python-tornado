@@ -16,8 +16,8 @@ class TestApi(unittest.TestCase):
 
     def tearDown(self):
         super(TestApi, self).tearDown()
-        tornado_opentracing._unpatch_tornado()
-        tornado_opentracing._unpatch_tornado_client()
+        tornado_opentracing.initialization._unpatch_tornado()
+        tornado_opentracing.initialization._unpatch_tornado_client()
 
     def test_patch(self):
         tornado_opentracing.init_tracing()
