@@ -1,5 +1,5 @@
+import opentracing
 import tornado
-
 from wrapt import wrap_function_wrapper as wrap_function, ObjectProxy
 
 from . import application, handlers, httpclient
@@ -10,9 +10,9 @@ def init_tracing():
     _patch_tornado_client()
 
 
-def init_client_tracing(tracer, start_span_cb=None):
+def init_client_tracing(tracer=None, start_span_cb=None):
     if tracer is None:
-        raise ValueError('tracer')
+        tracer = opentracing.tracer
 
     if hasattr(tracer, '_tracer'):
         tracer = tracer._tracer

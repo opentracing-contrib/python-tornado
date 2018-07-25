@@ -1,5 +1,6 @@
 import unittest
 
+import opentracing
 from opentracing.mocktracer import MockTracer
 from opentracing.scope_managers.tornado import TornadoScopeManager
 from opentracing.scope_managers.tornado import tracer_stack_context
@@ -42,7 +43,7 @@ class ScopeHandler(tornado.web.RequestHandler):
 
 
 def make_app(tracer, trace_all=None, trace_client=None,
-             traced_attributes=None,start_span_cb=None):
+             traced_attributes=None, start_span_cb=None):
 
     settings = {
         'opentracing_tracing': tornado_opentracing.TornadoTracing(tracer)
@@ -65,6 +66,17 @@ def make_app(tracer, trace_all=None, trace_client=None,
         **settings
     )
     return app
+
+
+class TestTornadoTracingValues(unittest.TestCase):
+    def test_tracer(self):
+        tracer = MockTracer()
+        tracing = tornado_opentracing.TornadoTracing(tracer)
+        self.assertEqual(tracing.tracer, tracer)
+
+    def test_tracer_none(self):
+        tracing = tornado_opentracing.TornadoTracing()
+        self.assertEqual(tracing.tracer, opentracing.tracer)
 
 
 class TestTracing(tornado.testing.AsyncHTTPTestCase):

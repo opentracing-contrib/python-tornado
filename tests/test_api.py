@@ -1,5 +1,6 @@
 import unittest
 
+import opentracing
 from opentracing.mocktracer import MockTracer
 import tornado
 import tornado_opentracing
@@ -52,8 +53,9 @@ class TestApi(unittest.TestCase):
         )
 
     def test_client_tracer_none(self):
-        with self.assertRaises(ValueError):
-            tornado_opentracing.init_client_tracing(None)
+        tornado_opentracing.init_client_tracing()
+        self.assertEqual(tornado_opentracing.httpclient.g_client_tracer,
+                         opentracing.tracer)
 
     def test_client_start_span_cb_invalid(self):
         with self.assertRaises(ValueError):

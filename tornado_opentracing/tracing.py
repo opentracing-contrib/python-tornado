@@ -13,8 +13,11 @@ class TornadoTracing(object):
     @param tracer the OpenTracing tracer to be used
     to trace requests using this TornadoTracing
     '''
-    def __init__(self, tracer, trace_all=False, trace_client=False,
+    def __init__(self, tracer=None, trace_all=False, trace_client=False,
                  start_span_cb=None):
+        if tracer is None:
+            tracer = opentracing.tracer
+
         self._tracer = tracer
         self._trace_all = trace_all
         self._trace_client = trace_client
