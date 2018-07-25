@@ -160,9 +160,10 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
         logs = spans[0].logs
         self.assertEqual(len(logs), 1)
         self.assertEqual(logs[0].key_values.get('event', None),
-                         'error.object')
-        self.assertTrue(isinstance(logs[0].key_values.get('payload', None),
-                         Exception))
+                         'error')
+        self.assertTrue(isinstance(
+            logs[0].key_values.get('error.object', None), Exception
+        ))
 
     def test_server_not_found(self):
         tornado_opentracing.init_client_tracing(self.tracer)
@@ -179,6 +180,6 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
 
         tags = spans[0].tags
         self.assertEqual(tags.get('http.status_code', None), 404)
-        self.assertEqual(tags.get('error', None), None) # no error.
+        self.assertEqual(tags.get('error', None), None)  # no error.
 
         self.assertEqual(len(spans[0].logs), 0)

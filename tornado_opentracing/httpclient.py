@@ -3,6 +3,7 @@ import functools
 from tornado.httpclient import HTTPRequest, HTTPError
 
 import opentracing
+from opentracing.ext import tags
 
 from ._constants import SCOPE_ATTR
 
@@ -56,10 +57,10 @@ def fetch_async(func, handler, args, kwargs):
     request = args[0]
 
     span = g_client_tracer.start_span(request.method)
-    span.set_tag('component', 'tornado')
-    span.set_tag('span.kind', 'client')
-    span.set_tag('http.url', request.url)
-    span.set_tag('http.method', request.method)
+    span.set_tag(tags.COMPONENT, 'tornado')
+    span.set_tag(tags.SPAN_KIND, tags.SPAN_KIND_RPC_CLIENT)
+    span.set_tag(tags.HTTP_URL, request.url)
+    span.set_tag(tags.HTTP_METHOD, request.method)
 
     g_client_tracer.inject(span.context,
                            opentracing.Format.HTTP_HEADERS,
@@ -94,12 +95,15 @@ def _finish_tracing_callback(future, span):
                 error = False
 
         if error:
-            span.set_tag('error', True)
-            span.log_event('error.object', exc)
+            span.set_tag(tags.ERROR, True)
+            span.log_kv({
+                'event': tags.ERROR,
+                'error.object': exc,
+            })
     else:
         status_code = future.result().code
 
     if status_code is not None:
-        span.set_tag('http.status_code', status_code)
+        span.set_tag(tags.HTTP_STATUS_CODE, status_code)
 
     span.finish()

@@ -2,6 +2,7 @@ import functools
 import wrapt
 
 import opentracing
+from opentracing.ext import tags
 from opentracing.scope_managers.tornado import tracer_stack_context
 
 from ._constants import SCOPE_ATTR
@@ -104,9 +105,9 @@ class TornadoTracing(object):
         setattr(request, SCOPE_ATTR, scope)
 
         # log any traced attributes
-        scope.span.set_tag('component', 'tornado')
-        scope.span.set_tag('http.method', request.method)
-        scope.span.set_tag('http.url', request.uri)
+        scope.span.set_tag(tags.COMPONENT, 'tornado')
+        scope.span.set_tag(tags.HTTP_METHOD, request.method)
+        scope.span.set_tag(tags.HTTP_URL, request.uri)
 
         for attr in attributes:
             if hasattr(request, attr):
@@ -128,9 +129,12 @@ class TornadoTracing(object):
         delattr(handler.request, SCOPE_ATTR)
 
         if error is not None:
-            scope.span.set_tag('error', True)
-            scope.span.log_event('error.object', error)
+            scope.span.set_tag(tags.ERROR, True)
+            scope.span.log_kv({
+                'event': tags.ERROR,
+                'error.object': error,
+            })
         else:
-            scope.span.set_tag('http.status_code', handler.get_status())
+            scope.span.set_tag(tags.HTTP_STATUS_CODE, handler.get_status())
 
         scope.close()
