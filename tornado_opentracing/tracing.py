@@ -128,8 +128,9 @@ class TornadoTracing(object):
         delattr(handler.request, SCOPE_ATTR)
 
         if error is not None:
-            scope.span.set_tag('error', 'true')
-            scope.span.set_tag('error.object', error)
+            scope.span.set_tag('error', True)
+            scope.span.log_event('error.object', error)
+        else:
+            scope.span.set_tag('http.status_code', handler.get_status())
 
-        scope.span.set_tag('http.status_code', handler.get_status())
         scope.close()

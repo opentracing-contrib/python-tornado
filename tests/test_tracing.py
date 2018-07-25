@@ -106,8 +106,14 @@ class TestTracing(tornado.testing.AsyncHTTPTestCase):
         self.assertEqual(spans[0].operation_name, 'ErrorHandler')
 
         tags = spans[0].tags
-        self.assertEqual(tags.get('error', None), 'true')
-        self.assertTrue(isinstance(tags.get('error.object', None), ValueError))
+        self.assertEqual(tags.get('error', None), True)
+
+        logs = spans[0].logs
+        self.assertEqual(len(logs), 1)
+        self.assertEqual(logs[0].key_values.get('event', None),
+                         'error.object')
+        self.assertTrue(isinstance(logs[0].key_values.get('payload', None),
+                         ValueError))
 
     def test_scope(self):
         response = self.fetch('/coroutine_scope')

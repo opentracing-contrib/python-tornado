@@ -94,8 +94,8 @@ def _finish_tracing_callback(future, span):
                 error = False
 
         if error:
-            span.set_tag('error', 'true')
-            span.set_tag('error.object', exc)
+            span.set_tag('error', True)
+            span.log_event('error.object', exc)
     else:
         status_code = future.result().code
 
