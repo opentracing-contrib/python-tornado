@@ -91,7 +91,7 @@ class TestTracing(tornado.testing.AsyncHTTPTestCase):
 
     def get_app(self):
         self.tracer = MockTracer(TornadoScopeManager())
-        return make_app(self.tracer, trace_all=True)
+        return make_app(self.tracer, trace_client=False)
 
     def test_simple(self):
         response = self.fetch('/')
@@ -170,7 +170,7 @@ class TestNoTraceAll(tornado.testing.AsyncHTTPTestCase):
 
     def get_app(self):
         self.tracer = MockTracer(TornadoScopeManager())
-        return make_app(self.tracer, trace_all=False)
+        return make_app(self.tracer, trace_all=False, trace_client=False)
 
     def test_simple(self):
         response = self.fetch('/')
@@ -193,7 +193,7 @@ class TestTracedAttributes(tornado.testing.AsyncHTTPTestCase):
     def get_app(self):
         self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
-                       trace_all=True,
+                       trace_client=False,
                        traced_attributes=[
                            'version',
                            'protocol',
@@ -236,7 +236,7 @@ class TestStartSpanCallback(tornado.testing.AsyncHTTPTestCase):
     def get_app(self):
         self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
-                        trace_all=True,
+                        trace_client=False,
                         start_span_cb=self.start_span_cb)
 
     def test_start_span_cb(self):
@@ -269,8 +269,7 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
     def get_app(self):
         self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
-                        trace_all=False,
-                        trace_client=True)
+                        trace_all=False)
 
     def test_simple(self):
         with tracer_stack_context():
@@ -306,7 +305,6 @@ class TestClientCallback(tornado.testing.AsyncHTTPTestCase):
         self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
                         trace_all=False,
-                        trace_client=True,
                         start_span_cb=self.start_span_cb)
 
     def start_span_cb(self, span, request):

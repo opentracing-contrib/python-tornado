@@ -4,6 +4,10 @@ from .tracing import TornadoTracing
 from . import httpclient
 
 
+DEFAULT_TRACE_ALL = True
+DEFAULT_TRACE_CLIENT = True
+
+
 def tracer_config(__init__, app, args, kwargs):
     """
     Wraps the Tornado web application initialization so that the
@@ -12,12 +16,10 @@ def tracer_config(__init__, app, args, kwargs):
     __init__(*args, **kwargs)
 
     tracing = app.settings.get('opentracing_tracing')
-
-    if 'opentracing_trace_all' in app.settings:
-        tracing._trace_all = app.settings['opentracing_trace_all']
-
-    if 'opentracing_trace_client' in app.settings:
-        tracing._trace_client = app.settings['opentracing_trace_client']
+    tracing._trace_all = app.settings.get('opentracing_trace_all',
+                                          DEFAULT_TRACE_ALL)
+    tracing._trace_client = app.settings.get('opentracing_trace_client',
+                                             DEFAULT_TRACE_CLIENT)
 
     if 'opentracing_start_span_cb' in app.settings:
         tracing._start_span_cb = app.settings['opentracing_start_span_cb']

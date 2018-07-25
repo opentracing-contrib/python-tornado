@@ -71,11 +71,11 @@ class DecoratedCoroutineScopeHandler(tornado.web.RequestHandler):
         self.write('{}')
 
 
-def make_app(trace_all=False):
+def make_app(with_tracing_obj=False):
     settings = {}
-    if trace_all:
+    if with_tracing_obj:
         settings['opentracing_tracing'] = tracing
-        settings['opentracing_trace_all'] = True
+        settings['opentracing_trace_client'] = False
 
     app = tornado.web.Application(
         [
@@ -220,7 +220,7 @@ class TestDecoratedAndTraceAll(tornado.testing.AsyncHTTPTestCase):
         super(TestDecoratedAndTraceAll, self).tearDown()
 
     def get_app(self):
-        return make_app(trace_all=True)
+        return make_app(with_tracing_obj=True)
 
     def test_only_one_span(self):
         # Even though trace_all=True and we are decorating
