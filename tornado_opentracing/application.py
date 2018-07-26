@@ -23,9 +23,8 @@ def tracer_config(__init__, app, args, kwargs):
                                           DEFAULT_TRACE_ALL)
     tracing._trace_client = app.settings.get('opentracing_trace_client',
                                              DEFAULT_TRACE_CLIENT)
-
-    if 'opentracing_start_span_cb' in app.settings:
-        tracing._start_span_cb = app.settings['opentracing_start_span_cb']
+    tracing._start_span_cb = app.settings.get('opentracing_start_span_cb',
+                                              None)
 
     httpclient._set_tracing_enabled(tracing._trace_client)
     if tracing._trace_client:
