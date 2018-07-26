@@ -47,8 +47,8 @@ def _normalize_request(args, kwargs):
 def fetch_async(func, handler, args, kwargs):
     # Return immediately if disabled, no args were provided (error)
     # or original_request is set (meaning we are in a redirect step).
-    if g_tracing_disabled or len(args) == 0 \
-            or hasattr(args[0], 'original_request'):
+    if (g_tracing_disabled or g_client_tracer is None) or \
+            len(args) == 0 or hasattr(args[0], 'original_request'):
         return func(*args, **kwargs)
 
     # Force the creation of a HTTPRequest object if needed,

@@ -42,12 +42,13 @@ class ScopeHandler(tornado.web.RequestHandler):
         self.write('{}')
 
 
-def make_app(tracer, trace_all=None, trace_client=None,
+def make_app(tracer=None, trace_all=None, trace_client=None,
              traced_attributes=None, start_span_cb=None):
 
     settings = {
-        'opentracing_tracing': tornado_opentracing.TornadoTracing(tracer)
     }
+    if tracer is not None:
+        settings['opentracing_tracing'] = tornado_opentracing.TornadoTracing(tracer)
     if trace_all is not None:
         settings['opentracing_trace_all'] = trace_all
     if trace_client is not None:
@@ -77,6 +78,29 @@ class TestTornadoTracingValues(unittest.TestCase):
     def test_tracer_none(self):
         tracing = tornado_opentracing.TornadoTracing()
         self.assertEqual(tracing.tracer, opentracing.tracer)
+
+
+class TestInitWithoutTracingObj(tornado.testing.AsyncHTTPTestCase):
+    def setUp(self):
+        tornado_opentracing.init_tracing()
+        super(TestInitWithoutTracingObj, self).setUp()
+
+    def tearDown(self):
+        tornado_opentracing.initialization._unpatch_tornado()
+        tornado_opentracing.initialization._unpatch_tornado_client()
+        super(TestInitWithoutTracingObj, self).tearDown()
+
+    def get_app(self):
+        self.tracer = MockTracer(TornadoScopeManager())
+        return make_app() # no opentracing_tracing
+
+    def test_case(self):
+        response = self.fetch('/')
+        self.assertEqual(response.code, 200)
+
+        # no traces, no errors.
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 0)
 
 
 class TestTracing(tornado.testing.AsyncHTTPTestCase):

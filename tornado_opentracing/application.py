@@ -16,6 +16,9 @@ def tracer_config(__init__, app, args, kwargs):
     __init__(*args, **kwargs)
 
     tracing = app.settings.get('opentracing_tracing')
+    if tracing is None:
+        return
+
     tracing._trace_all = app.settings.get('opentracing_trace_all',
                                           DEFAULT_TRACE_ALL)
     tracing._trace_client = app.settings.get('opentracing_trace_client',
