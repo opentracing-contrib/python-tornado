@@ -1,6 +1,3 @@
-import opentracing
-
-from .tracing import TornadoTracing
 from . import httpclient
 
 

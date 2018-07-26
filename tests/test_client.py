@@ -1,14 +1,11 @@
-import unittest
-
 from opentracing.mocktracer import MockTracer
 from opentracing.scope_managers.tornado import TornadoScopeManager
 from opentracing.scope_managers.tornado import tracer_stack_context
 import tornado.gen
-from tornado.httpclient import HTTPError, HTTPRequest
+from tornado.httpclient import HTTPRequest
 import tornado.web
 import tornado.testing
 import tornado_opentracing
-
 
 
 class MainHandler(tornado.web.RequestHandler):

@@ -8,6 +8,7 @@ import tornado.gen
 import tornado.web
 import tornado.testing
 import tornado_opentracing
+from tornado_opentracing import TornadoTracing
 
 
 class MainHandler(tornado.web.RequestHandler):
@@ -48,7 +49,7 @@ def make_app(tracer=None, trace_all=None, trace_client=None,
     settings = {
     }
     if tracer is not None:
-        settings['opentracing_tracing'] = tornado_opentracing.TornadoTracing(tracer)
+        settings['opentracing_tracing'] = TornadoTracing(tracer)
     if trace_all is not None:
         settings['opentracing_trace_all'] = trace_all
     if trace_client is not None:
@@ -92,7 +93,7 @@ class TestInitWithoutTracingObj(tornado.testing.AsyncHTTPTestCase):
 
     def get_app(self):
         self.tracer = MockTracer(TornadoScopeManager())
-        return make_app() # no opentracing_tracing
+        return make_app()  # no opentracing_tracing
 
     def test_case(self):
         response = self.fetch('/')
@@ -217,12 +218,12 @@ class TestTracedAttributes(tornado.testing.AsyncHTTPTestCase):
     def get_app(self):
         self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
-                       trace_client=False,
-                       traced_attributes=[
-                           'version',
-                           'protocol',
-                           'doesnotexist',
-                       ])
+                        trace_client=False,
+                        traced_attributes=[
+                            'version',
+                            'protocol',
+                            'doesnotexist',
+                        ])
 
     def test_traced_attributes(self):
         response = self.fetch('/')

@@ -5,8 +5,6 @@ from tornado.httpclient import HTTPRequest, HTTPError
 import opentracing
 from opentracing.ext import tags
 
-from ._constants import SCOPE_ATTR
-
 
 g_tracing_disabled = True
 g_client_tracer = None

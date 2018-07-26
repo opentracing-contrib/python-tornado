@@ -9,10 +9,10 @@ from ._constants import SCOPE_ATTR
 
 
 class TornadoTracing(object):
-    '''
+    """
     @param tracer the OpenTracing tracer to be used
     to trace requests using this TornadoTracing
-    '''
+    """
     def __init__(self, tracer=None, start_span_cb=None):
         if tracer is None:
             tracer = opentracing.tracer
@@ -27,20 +27,20 @@ class TornadoTracing(object):
         return self._tracer
 
     def get_span(self, request):
-        '''
-        @param request 
+        """
+        @param request
         Returns the span tracing this request
-        '''
+        """
         scope = getattr(request, SCOPE_ATTR, None)
         return None if scope is None else scope.span
 
     def trace(self, *attributes):
-        '''
+        """
         Function decorator that traces functions
         NOTE: Must be placed before the Tornado decorators
         @param attributes any number of request attributes
         (strings) to be set as tags on the created span
-        '''
+        """
 
         @wrapt.decorator
         def wrapper(wrapped, instance, args, kwargs):
@@ -76,24 +76,23 @@ class TornadoTracing(object):
 
     def _get_operation_name(self, handler):
         full_class_name = type(handler).__name__
-        return full_class_name.rsplit('.')[-1] # package-less name.
+        return full_class_name.rsplit('.')[-1]  # package-less name.
 
     def _finish_tracing_callback(self, future, handler):
         error = future.exception()
         self._finish_tracing(handler, error=error)
 
     def _apply_tracing(self, handler, attributes):
-        '''
+        """
         Helper function to avoid rewriting for middleware and decorator.
-        Returns a new span from the request with logged attributes and 
+        Returns a new span from the request with logged attributes and
         correct operation name from the func.
-        '''
+        """
         operation_name = self._get_operation_name(handler)
         headers = handler.request.headers
         request = handler.request
 
         # start new span from trace info
-        span = None
         try:
             span_ctx = self._tracer.extract(opentracing.Format.HTTP_HEADERS,
                                             headers)
@@ -103,7 +102,7 @@ class TornadoTracing(object):
                 opentracing.SpanContextCorruptedException):
             scope = self._tracer.start_active_span(operation_name)
 
-        # add span to current spans 
+        # add span to current spans
         setattr(request, SCOPE_ATTR, scope)
 
         # log any traced attributes

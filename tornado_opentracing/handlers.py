@@ -1,6 +1,5 @@
 from tornado.web import HTTPError
 
-import opentracing
 from opentracing.scope_managers.tornado import tracer_stack_context
 
 

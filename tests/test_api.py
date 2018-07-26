@@ -30,14 +30,16 @@ class TestApi(unittest.TestCase):
         tornado_opentracing.init_client_tracing(tracer)
         self.assertFalse(getattr(tornado, '__opentracing_patch', False))
         self.assertTrue(getattr(tornado, '__opentracing_client_patch', False))
-        self.assertEqual(tornado_opentracing.httpclient.g_client_tracer, tracer)
+        self.assertEqual(tornado_opentracing.httpclient.g_client_tracer,
+                         tracer)
 
     def test_client_subtracer(self):
         tracer = DummyTracer(MockTracer())
         tornado_opentracing.init_client_tracing(tracer)
         self.assertFalse(getattr(tornado, '__opentracing_patch', False))
         self.assertTrue(getattr(tornado, '__opentracing_client_patch', False))
-        self.assertEqual(tornado_opentracing.httpclient.g_client_tracer, tracer._tracer)
+        self.assertEqual(tornado_opentracing.httpclient.g_client_tracer,
+                         tracer._tracer)
 
     def test_client_start_span(self):
         def test_cb(span, request):

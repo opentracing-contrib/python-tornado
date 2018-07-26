@@ -1,5 +1,3 @@
-import unittest
-
 from opentracing.mocktracer import MockTracer
 from opentracing.scope_managers.tornado import TornadoScopeManager
 from opentracing.scope_managers.tornado import tracer_stack_context
@@ -48,6 +46,7 @@ class DecoratedCoroutineErrorHandler(tornado.web.RequestHandler):
     def get(self):
         yield tornado.gen.sleep(0)
         raise ValueError('invalid value')
+
 
 class DecoratedCoroutineScopeHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
@@ -163,7 +162,8 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
         spans = tracing.tracer.finished_spans()
         self.assertEqual(len(spans), 1)
         self.assertTrue(spans[0].finished)
-        self.assertEqual(spans[0].operation_name, 'DecoratedCoroutineErrorHandler')
+        self.assertEqual(spans[0].operation_name,
+                         'DecoratedCoroutineErrorHandler')
 
         tags = spans[0].tags
         self.assertEqual(tags.get('error', None), True)
@@ -193,7 +193,8 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
 
         parent = spans[1]
         self.assertTrue(parent.finished)
-        self.assertEqual(parent.operation_name, 'DecoratedCoroutineScopeHandler')
+        self.assertEqual(parent.operation_name,
+                         'DecoratedCoroutineScopeHandler')
         self.assertEqual(parent.tags, {
             'component': 'tornado',
             'http.url': '/decorated_coroutine_scope',
