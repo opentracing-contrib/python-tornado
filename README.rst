@@ -25,7 +25,11 @@ In order to implement tracing in your system (for all the requests), add the fol
 
 .. code-block:: python
 
+    from opentracing.scope_managers.tornado import TornadoScopeManager
     import tornado_opentracing
+
+    # Create your opentracing tracer using TornadoScopeManager for active Span handling.
+    tracer = SomeOpenTracingTracer(scope_manager=TornadoScopeManager())
 
     # Initialize tracing before creating the Application object
     tornado_opentracing.init_tracing()
@@ -33,7 +37,7 @@ In order to implement tracing in your system (for all the requests), add the fol
     # Configure the tracer
     app = Application(
         ''' Other parameters here '''
-        opentracing_tracing=tornado_opentracing.TornadoTracing(some_opentracing_tracer),
+        opentracing_tracing=tornado_opentracing.TornadoTracing(tracer),
     )
 
 It is possible to set additional settings, for advanced usage:
@@ -42,7 +46,7 @@ It is possible to set additional settings, for advanced usage:
 
     app = Application(
         ''' Other parameters here '''
-        opentracing_tracing=tornado_opentracing.TornadoTracing(some_opentracing_tracer),
+        opentracing_tracing=tornado_opentracing.TornadoTracing(tracer),
         opentracing_trace_all=True, # defaults to True.
         opentracing_trace_client=True, # AsyncHTTPClient tracing, defaults to True
         opentracing_traced_attributes=['method'], # only valid if trace_all==True
@@ -93,6 +97,40 @@ For applications tracing individual requests, or using only the http client (no 
 
 
 ``init_client_tracing`` takes an OpenTracing-compatible tracer, and can optionally take a ``start_span_cb`` parameter as callback. Observe this call **is not** required when required when using ``trace_all`` with the ``init_tracing`` initialization.
+
+**Note**: A current limitation of ``TornadoScopeManager`` prevents scheduling more than one coroutine with active ``Span`` at a time (see the **Active Span Handling** section below). And since it's a common pattern to use ``AsyncHTTPClient`` to fetch multiple urls at a time, newly created ``Span`` for client requests will not be set as active through ``ScopeManager``.
+
+Active Span handling
+====================
+
+For active ``Span`` handling and propagation, your ``Tracer`` should use ``opentracing.scope_managers.tornado.TornadoScopeManager``. Tracing both all requests and individual requests will set up a proper stack context automatically, and the active ``Span`` will be propagated from parent coroutines to their children. In any other case, code needs to be run under ``tracer_stack_context()`` explicitly:
+
+.. code-block:: python
+
+    from opentracing.scope_managers.tornado import tracer_stack_context
+
+    with tracer_stack_context():
+        ioloop.IOLoop.current().run_sync(main_func)
+
+
+**Note**: Currently ``TornadoScopeManager`` does not support scheduling more than one coroutine setting the active ``Span`` at a time, as the given context is shared, and thus can be messed up:
+
+.. code-block:: python
+
+    @tornado.gen.coroutine
+    def child_coroutine(name, input_data):
+        # Cannot set Span as active.
+        # However, the parent active Span will still be set,
+        # thus no need to specify it with child_of=
+        with tracer.start_span('child-%s' % name) as span:
+            ...
+
+    @tornado.gen.corotuine
+    def parent_coroutine():
+        with tracer.start_active_span('parent'):
+          a = child_coroutine('A', input_a)
+          b = child_coroutine('B', input_b)
+          yield [a, b]
 
 Examples
 ========
