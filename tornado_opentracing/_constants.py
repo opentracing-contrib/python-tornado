@@ -12,6 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .initialization import init_tracing  # noqa
-from .initialization import init_client_tracing  # noqa
-from .tracing import TornadoTracing  # noqa
+SCOPE_ATTR = '__scope'

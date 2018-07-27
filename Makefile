@@ -1,3 +1,5 @@
+project := tornado_opentracing
+
 .PHONY: test publish install clean clean-build clean-pyc clean-test build
 
 install: 
@@ -33,8 +35,11 @@ clean-pyc:
 clean-test:
 	rm -f .coverage
 
+lint:
+	flake8 $(project) tests
+
 test:
-	py.test -s --cov-report term-missing:skip-covered --cov=tornado_opentracing
+	py.test -s --cov-report term-missing:skip-covered --cov=$(project)
 
 build: 
 	python setup.py build

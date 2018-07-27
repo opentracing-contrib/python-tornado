@@ -1,6 +1,23 @@
+# Copyright The OpenTracing Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import functools
+
 from tornado.httpclient import HTTPRequest, HTTPError
 
 import opentracing
+from opentracing.ext import tags
 
 
 g_tracing_disabled = True
@@ -42,8 +59,8 @@ def _normalize_request(args, kwargs):
 def fetch_async(func, handler, args, kwargs):
     # Return immediately if disabled, no args were provided (error)
     # or original_request is set (meaning we are in a redirect step).
-    if g_tracing_disabled or len(args) == 0 \
-            or hasattr(args[0], 'original_request'):
+    if (g_tracing_disabled or g_client_tracer is None) or \
+            len(args) == 0 or hasattr(args[0], 'original_request'):
         return func(*args, **kwargs)
 
     # Force the creation of a HTTPRequest object if needed,
@@ -52,10 +69,10 @@ def fetch_async(func, handler, args, kwargs):
     request = args[0]
 
     span = g_client_tracer.start_span(request.method)
-    span.set_tag('component', 'tornado')
-    span.set_tag('span.kind', 'client')
-    span.set_tag('http.url', request.url)
-    span.set_tag('http.method', request.method)
+    span.set_tag(tags.COMPONENT, 'tornado')
+    span.set_tag(tags.SPAN_KIND, tags.SPAN_KIND_RPC_CLIENT)
+    span.set_tag(tags.HTTP_URL, request.url)
+    span.set_tag(tags.HTTP_METHOD, request.method)
 
     g_client_tracer.inject(span.context,
                            opentracing.Format.HTTP_HEADERS,
@@ -65,16 +82,18 @@ def fetch_async(func, handler, args, kwargs):
         g_start_span_cb(span, request)
 
     future = func(*args, **kwargs)
-    future._span = span
-    future.add_done_callback(_finish_tracing_callback)
+
+    # Finish the Span when the Future is done, making
+    # sure the StackContext is restored (it's not by default).
+    callback = functools.partial(_finish_tracing_callback, span=span)
+    future.add_done_callback(callback)
 
     return future
 
 
-def _finish_tracing_callback(future):
-    span = future._span
-    status_code = None
+def _finish_tracing_callback(future, span):
 
+    status_code = None
     exc = future.exception()
     if exc:
         # Tornado uses HTTPError to report some of the
@@ -88,12 +107,15 @@ def _finish_tracing_callback(future):
                 error = False
 
         if error:
-            span.set_tag('error', 'true')
-            span.set_tag('error.object', exc)
+            span.set_tag(tags.ERROR, True)
+            span.log_kv({
+                'event': tags.ERROR,
+                'error.object': exc,
+            })
     else:
         status_code = future.result().code
 
     if status_code is not None:
-        span.set_tag('http.status_code', status_code)
+        span.set_tag(tags.HTTP_STATUS_CODE, status_code)
 
     span.finish()

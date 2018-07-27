@@ -1,14 +1,17 @@
 from tornado.ioloop import IOLoop
 from tornado.web import Application, RequestHandler
+from tornado import gen
 
 import opentracing
+from opentracing.scope_managers.tornado import TornadoScopeManager
 import tornado_opentracing
 
 
 tornado_opentracing.init_tracing()
 
 # Your OpenTracing-compatible tracer here.
-tracer = opentracing.Tracer()
+tracer = opentracing.Tracer(scope_manager=TornadoScopeManager())
+
 
 class MainHandler(RequestHandler):
     def get(self):
@@ -16,9 +19,13 @@ class MainHandler(RequestHandler):
 
 
 class StoryHandler(RequestHandler):
+
+    @gen.coroutine
     def get(self, story_id):
         if int(story_id) == 0:
             raise ValueError('invalid value passed')
+
+        tracer.active_span.set_tag('processed', True)
         self.write({'status': 'fetched'})
 
 
@@ -26,7 +33,7 @@ app = Application([
         (r'/', MainHandler),
         (r'/story/([0-9]+)', StoryHandler),
     ],
-    opentracing_tracer=tornado_opentracing.TornadoTracer(tracer),
+    opentracing_tracing=tornado_opentracing.TornadoTracing(tracer),
     opentracing_trace_all=True,
     opentracing_traced_attributes=['protocol', 'method'],
 )

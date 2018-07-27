@@ -15,11 +15,13 @@ setup(
     platforms='any',
     install_requires=[
         'tornado',
-        'opentracing>=1.1,<1.2',
+        'opentracing==2.0.0',
         'wrapt',
     ],
     extras_require={
         'tests': [
+            'flake8<3',  # see https://github.com/zheller/flake8-quotes/issues/29
+            'flake8-quotes',
             'pytest>=2.7,<3',
             'pytest-cov',
         ],

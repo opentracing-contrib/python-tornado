@@ -1,6 +1,20 @@
+# Copyright The OpenTracing Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from tornado.web import HTTPError
 
-import opentracing
+from opentracing.scope_managers.tornado import tracer_stack_context
 
 
 def execute(func, handler, args, kwargs):
@@ -8,23 +22,29 @@ def execute(func, handler, args, kwargs):
     Wrap the handler ``_execute`` method to trace incoming requests,
     extracting the context from the headers, if available.
     """
-    tracer = handler.settings.get('opentracing_tracer', opentracing.tracer)
+    tracing = handler.settings.get('opentracing_tracing')
+    if tracing is None:
+        return func(*args, **kwargs)
 
-    if tracer._trace_all:
-        traced_attrs = handler.settings.get('opentracing_traced_attributes', [])
-        tracer._apply_tracing(handler, traced_attrs)
+    with tracer_stack_context():
+        if tracing._trace_all:
+            attrs = handler.settings.get('opentracing_traced_attributes', [])
+            tracing._apply_tracing(handler, attrs)
 
-    return func(*args, **kwargs)
+        return func(*args, **kwargs)
+
 
 def on_finish(func, handler, args, kwargs):
     """
     Wrap the handler ``on_finish`` method to finish the Span for the
     given request, if available.
     """
-    tracer = handler.settings.get('opentracing_tracer', opentracing.tracer)
-    tracer._finish_tracing(handler)
+    tracing = handler.settings.get('opentracing_tracing')
+    if tracing is not None:
+        tracing._finish_tracing(handler)
 
     return func(*args, **kwargs)
+
 
 def log_exception(func, handler, args, kwargs):
     """
@@ -37,8 +57,9 @@ def log_exception(func, handler, args, kwargs):
     if value is None:
         return func(*args, **kwargs)
 
-    tracer = handler.settings.get('opentracing_tracer')
-    if not isinstance(value, HTTPError) or 500 <= value.status_code <= 599:
-        tracer._finish_tracing(handler, error=value)
+    tracing = handler.settings.get('opentracing_tracing')
+    if tracing is not None:
+        if not isinstance(value, HTTPError) or 500 <= value.status_code <= 599:
+            tracing._finish_tracing(handler, error=value)
 
     return func(*args, **kwargs)
