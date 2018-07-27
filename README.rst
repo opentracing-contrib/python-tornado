@@ -59,7 +59,7 @@ It is possible to set additional settings, for advanced usage:
 Tracing All Requests
 ====================
 
-In order to trace all requests, set ``opentracing_trace_all=True`` when creating ``Application`` (this is the default value). If you want to trace any attributes for all requests, then add them to ``opentracing_traced_attributes``. For example, if you wanted to trace the uri and method, then set ``opentracing_traced_attributes = ['uri', 'method']``.
+In order to trace all requests, set ``opentracing_trace_all=True`` when creating ``Application`` (this is the default value). If you want to record any attributes (as tags) for all requests, then add them to ``opentracing_traced_attributes``. For example, if you wanted to trace the uri and method, then set ``opentracing_traced_attributes = ['uri', 'method']``.
 
 ``opentracing_start_span_cb`` is a callback invoked after a new ``Span`` has been created, and it must have two parameters: the new ``Span`` and the ``request`` object.
 
