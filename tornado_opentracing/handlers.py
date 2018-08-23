@@ -23,8 +23,6 @@ def execute(func, handler, args, kwargs):
     extracting the context from the headers, if available.
     """
     tracing = handler.settings.get('opentracing_tracing')
-    if tracing is None:
-        return func(*args, **kwargs)
 
     with tracer_stack_context():
         if tracing._trace_all:
@@ -40,8 +38,7 @@ def on_finish(func, handler, args, kwargs):
     given request, if available.
     """
     tracing = handler.settings.get('opentracing_tracing')
-    if tracing is not None:
-        tracing._finish_tracing(handler)
+    tracing._finish_tracing(handler)
 
     return func(*args, **kwargs)
 
@@ -58,8 +55,7 @@ def log_exception(func, handler, args, kwargs):
         return func(*args, **kwargs)
 
     tracing = handler.settings.get('opentracing_tracing')
-    if tracing is not None:
-        if not isinstance(value, HTTPError) or 500 <= value.status_code <= 599:
-            tracing._finish_tracing(handler, error=value)
+    if not isinstance(value, HTTPError) or 500 <= value.status_code <= 599:
+        tracing._finish_tracing(handler, error=value)
 
     return func(*args, **kwargs)

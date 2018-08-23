@@ -28,17 +28,24 @@ class TornadoTracing(object):
     to trace requests using this TornadoTracing
     """
     def __init__(self, tracer=None, start_span_cb=None):
-        if tracer is None:
-            tracer = opentracing.tracer
-
-        self._tracer = tracer
+        self._tracer_obj = tracer
         self._start_span_cb = start_span_cb
         self._trace_all = False
         self._trace_client = False
 
     @property
+    def _tracer(self):
+        """
+        DEPRECATED
+        """
+        return self.tracer
+
+    @property
     def tracer(self):
-        return self._tracer
+        if self._tracer_obj is None:
+            return opentracing.tracer
+
+        return self._tracer_obj
 
     def get_span(self, request):
         """

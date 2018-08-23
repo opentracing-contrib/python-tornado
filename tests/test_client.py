@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import mock
+
 from opentracing.mocktracer import MockTracer
 from opentracing.scope_managers.tornado import TornadoScopeManager
 from opentracing.scope_managers.tornado import tracer_stack_context
@@ -56,6 +58,28 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
 
     def get_app(self):
         return make_app()
+
+    def test_no_tracer(self):
+        tornado_opentracing.init_client_tracing()
+
+        with mock.patch('opentracing.tracer', new=self.tracer):
+            with tracer_stack_context():
+                self.http_client.fetch(self.get_url('/'), self.stop)
+
+        response = self.wait()
+        self.assertEqual(response.code, 200)
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(spans[0].finished)
+        self.assertEqual(spans[0].operation_name, 'GET')
+        self.assertEqual(spans[0].tags, {
+            'component': 'tornado',
+            'span.kind': 'client',
+            'http.url': self.get_url('/'),
+            'http.method': 'GET',
+            'http.status_code': 200,
+        })
 
     def test_simple(self):
         tornado_opentracing.init_client_tracing(self.tracer)

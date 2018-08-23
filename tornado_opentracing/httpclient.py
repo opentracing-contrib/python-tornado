@@ -36,6 +36,13 @@ def _set_tracing_info(tracer, start_span_cb):
     g_start_span_cb = start_span_cb
 
 
+def _get_tracer():
+    if g_client_tracer is None:
+        return opentracing.tracer
+
+    return g_client_tracer
+
+
 def _normalize_request(args, kwargs):
     req = args[0]
     if not isinstance(req, str):
@@ -59,7 +66,7 @@ def _normalize_request(args, kwargs):
 def fetch_async(func, handler, args, kwargs):
     # Return immediately if disabled, no args were provided (error)
     # or original_request is set (meaning we are in a redirect step).
-    if (g_tracing_disabled or g_client_tracer is None) or \
+    if g_tracing_disabled or \
             len(args) == 0 or hasattr(args[0], 'original_request'):
         return func(*args, **kwargs)
 
@@ -68,15 +75,16 @@ def fetch_async(func, handler, args, kwargs):
     args, kwargs = _normalize_request(args, kwargs)
     request = args[0]
 
-    span = g_client_tracer.start_span(request.method)
+    tracer = _get_tracer()
+    span = tracer.start_span(request.method)
     span.set_tag(tags.COMPONENT, 'tornado')
     span.set_tag(tags.SPAN_KIND, tags.SPAN_KIND_RPC_CLIENT)
     span.set_tag(tags.HTTP_URL, request.url)
     span.set_tag(tags.HTTP_METHOD, request.method)
 
-    g_client_tracer.inject(span.context,
-                           opentracing.Format.HTTP_HEADERS,
-                           request.headers)
+    tracer.inject(span.context,
+                  opentracing.Format.HTTP_HEADERS,
+                  request.headers)
 
     if g_start_span_cb:
         g_start_span_cb(span, request)

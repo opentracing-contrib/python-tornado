@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from . import httpclient
+from .tracing import TornadoTracing
 
 
 DEFAULT_TRACE_ALL = True
@@ -28,7 +29,8 @@ def tracer_config(__init__, app, args, kwargs):
 
     tracing = app.settings.get('opentracing_tracing')
     if tracing is None:
-        return
+        tracing = TornadoTracing()  # fallback to the global tracer
+        app.settings['opentracing_tracing'] = tracing
 
     tracing._trace_all = app.settings.get('opentracing_trace_all',
                                           DEFAULT_TRACE_ALL)
@@ -39,4 +41,5 @@ def tracer_config(__init__, app, args, kwargs):
 
     httpclient._set_tracing_enabled(tracing._trace_client)
     if tracing._trace_client:
-        httpclient._set_tracing_info(tracing._tracer, tracing._start_span_cb)
+        httpclient._set_tracing_info(tracing._tracer_obj,
+                                     tracing._start_span_cb)

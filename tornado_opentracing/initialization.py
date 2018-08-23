@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import opentracing
 import tornado
 from wrapt import wrap_function_wrapper as wrap_function, ObjectProxy
 
@@ -25,9 +24,6 @@ def init_tracing():
 
 
 def init_client_tracing(tracer=None, start_span_cb=None):
-    if tracer is None:
-        tracer = opentracing.tracer
-
     if hasattr(tracer, '_tracer'):
         tracer = tracer._tracer
 

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import mock
 import unittest
 
 import opentracing
@@ -68,9 +69,14 @@ class TestApi(unittest.TestCase):
             test_cb
         )
 
-    def test_client_tracer_none(self):
+    @mock.patch('opentracing.tracer')
+    def test_client_tracer_none(self, tracer):
         tornado_opentracing.init_client_tracing()
-        self.assertEqual(tornado_opentracing.httpclient.g_client_tracer,
+        self.assertEqual(tornado_opentracing.httpclient._get_tracer(),
+                         opentracing.tracer)
+
+        opentracing.tracer = mock.MagicMock()
+        self.assertEqual(tornado_opentracing.httpclient._get_tracer(),
                          opentracing.tracer)
 
     def test_client_start_span_cb_invalid(self):

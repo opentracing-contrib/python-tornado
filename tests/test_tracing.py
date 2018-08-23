@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import mock
 import unittest
 
 import opentracing
@@ -90,8 +91,12 @@ class TestTornadoTracingValues(unittest.TestCase):
         tracing = tornado_opentracing.TornadoTracing(tracer)
         self.assertEqual(tracing.tracer, tracer)
 
-    def test_tracer_none(self):
+    @mock.patch('opentracing.tracer')
+    def test_tracer_none(self, tracer):
         tracing = tornado_opentracing.TornadoTracing()
+        self.assertEqual(tracing.tracer, opentracing.tracer)
+
+        opentracing.tracer = mock.MagicMock()
         self.assertEqual(tracing.tracer, opentracing.tracer)
 
 
@@ -107,15 +112,29 @@ class TestInitWithoutTracingObj(tornado.testing.AsyncHTTPTestCase):
 
     def get_app(self):
         self.tracer = MockTracer(TornadoScopeManager())
-        return make_app()  # no opentracing_tracing
+        return make_app(start_span_cb=self.start_span_cb)
 
-    def test_case(self):
+    def start_span_cb(self, span, request):
+        span.set_tag('done', True)
+
+    def test_default(self):
+        # no-op opentracing.tracer should work silently.
         response = self.fetch('/')
         self.assertEqual(response.code, 200)
 
-        # no traces, no errors.
+    def test_case(self):
+        with mock.patch('opentracing.tracer', new=self.tracer):
+            response = self.fetch('/')
+            self.assertEqual(response.code, 200)
+
         spans = self.tracer.finished_spans()
-        self.assertEqual(len(spans), 0)
+        self.assertEqual(len(spans), 2)
+
+        self.assertEqual(spans[0].operation_name, 'MainHandler')  # server
+        self.assertEqual(spans[0].tags.get('done', None), True)
+
+        self.assertEqual(spans[1].operation_name, 'GET')  # client
+        self.assertEqual(spans[1].tags.get('done', None), True)
 
 
 class TestTracing(tornado.testing.AsyncHTTPTestCase):
