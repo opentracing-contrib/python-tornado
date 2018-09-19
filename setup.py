@@ -15,7 +15,7 @@ setup(
     platforms='any',
     install_requires=[
         'tornado',
-        'opentracing==2.0.0',
+        'opentracing>=2.0,<2.1',
         'wrapt',
     ],
     extras_require={
