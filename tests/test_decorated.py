@@ -127,6 +127,7 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
         self.assertEqual(spans[0].operation_name, 'DecoratedHandler')
         self.assertEqual(spans[0].tags, {
             'component': 'tornado',
+            'span.kind': 'server',
             'http.url': '/decorated',
             'http.method': 'GET',
             'http.status_code': 200,
@@ -163,6 +164,7 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
         self.assertEqual(spans[0].operation_name, 'DecoratedCoroutineHandler')
         self.assertEqual(spans[0].tags, {
             'component': 'tornado',
+            'span.kind': 'server',
             'http.url': '/decorated_coroutine',
             'http.method': 'GET',
             'http.status_code': 201,
@@ -211,6 +213,7 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
                          'DecoratedCoroutineScopeHandler')
         self.assertEqual(parent.tags, {
             'component': 'tornado',
+            'span.kind': 'server',
             'http.url': '/decorated_coroutine_scope',
             'http.method': 'GET',
             'http.status_code': 201,
@@ -287,6 +290,7 @@ class TestClientIntegration(tornado.testing.AsyncHTTPTestCase):
         self.assertEqual(span2.operation_name, 'DecoratedHandler')
         self.assertEqual(span2.tags, {
             'component': 'tornado',
+            'span.kind': 'server',
             'http.url': '/decorated',
             'http.method': 'GET',
             'http.status_code': 200,

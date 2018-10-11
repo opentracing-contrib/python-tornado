@@ -161,6 +161,7 @@ class TestTracing(tornado.testing.AsyncHTTPTestCase):
         self.assertEqual(spans[0].operation_name, 'MainHandler')
         self.assertEqual(spans[0].tags, {
             'component': 'tornado',
+            'span.kind': 'server',
             'http.url': '/',
             'http.method': 'GET',
             'http.status_code': 200,
@@ -206,6 +207,7 @@ class TestTracing(tornado.testing.AsyncHTTPTestCase):
         self.assertEqual(parent.operation_name, 'ScopeHandler')
         self.assertEqual(parent.tags, {
             'component': 'tornado',
+            'span.kind': 'server',
             'http.url': '/coroutine_scope',
             'http.method': 'GET',
             'http.status_code': 200,
@@ -268,6 +270,7 @@ class TestTracedAttributes(tornado.testing.AsyncHTTPTestCase):
         self.assertEqual(spans[0].operation_name, 'MainHandler')
         self.assertEqual(spans[0].tags, {
             'component': 'tornado',
+            'span.kind': 'server',
             'http.url': '/',
             'http.method': 'GET',
             'http.status_code': 200,
@@ -307,6 +310,7 @@ class TestStartSpanCallback(tornado.testing.AsyncHTTPTestCase):
         self.assertEqual(spans[0].operation_name, 'foo/GET')
         self.assertEqual(spans[0].tags, {
             'component': 'not-tornado',
+            'span.kind': 'server',
             'http.url': '/',
             'http.method': 'GET',
             'http.status_code': 200,
