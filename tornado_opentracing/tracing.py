@@ -28,6 +28,9 @@ class TornadoTracing(object):
     to trace requests using this TornadoTracing
     """
     def __init__(self, tracer=None, start_span_cb=None):
+        if start_span_cb is not None and not callable(start_span_cb):
+            raise ValueError('start_span_cb is not callable')
+
         self._tracer_obj = tracer
         self._start_span_cb = start_span_cb
         self._trace_all = False

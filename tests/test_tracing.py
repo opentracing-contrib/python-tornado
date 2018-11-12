@@ -99,6 +99,10 @@ class TestTornadoTracingValues(unittest.TestCase):
         opentracing.tracer = mock.MagicMock()
         self.assertEqual(tracing.tracer, opentracing.tracer)
 
+    def test_start_span_cb_invalid(self):
+        with self.assertRaises(ValueError):
+            tornado_opentracing.TornadoTracing(start_span_cb=[])
+
 
 class TestInitWithoutTracingObj(tornado.testing.AsyncHTTPTestCase):
     def setUp(self):
