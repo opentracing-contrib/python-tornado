@@ -128,6 +128,23 @@ class TestClient(tornado.testing.AsyncHTTPTestCase):
             'http.status_code': 200,
         })
 
+    def test_start_span_cb_exception(self):
+        def test_cb(span, request):
+            raise RuntimeError('This should not happen')
+
+        tornado_opentracing.init_client_tracing(self.tracer,
+                                                start_span_cb=test_cb)
+
+        with tracer_stack_context():
+            self.http_client.fetch(self.get_url('/'), self.stop)
+
+        response = self.wait()
+        self.assertEqual(response.code, 200)
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertFalse(spans[0].tags.get('error', False))
+
     def test_explicit_parameters(self):
         tornado_opentracing.init_client_tracing(self.tracer)
 

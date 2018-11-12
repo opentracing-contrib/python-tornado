@@ -86,8 +86,8 @@ def fetch_async(func, handler, args, kwargs):
                   opentracing.Format.HTTP_HEADERS,
                   request.headers)
 
-    if g_start_span_cb:
-        g_start_span_cb(span, request)
+    # Call the start_span_cb, if any.
+    _call_start_span_cb(span, request)
 
     future = func(*args, **kwargs)
 
@@ -127,3 +127,13 @@ def _finish_tracing_callback(future, span):
         span.set_tag(tags.HTTP_STATUS_CODE, status_code)
 
     span.finish()
+
+
+def _call_start_span_cb(span, request):
+    if g_start_span_cb is None:
+        return
+
+    try:
+        g_start_span_cb(span, request)
+    except Exception:
+        pass

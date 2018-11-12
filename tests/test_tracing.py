@@ -322,6 +322,34 @@ class TestStartSpanCallback(tornado.testing.AsyncHTTPTestCase):
         })
 
 
+class TestStartSpanCallbackException(tornado.testing.AsyncHTTPTestCase):
+    def setUp(self):
+        tornado_opentracing.init_tracing()
+        super(TestStartSpanCallbackException, self).setUp()
+
+    def tearDown(self):
+        tornado_opentracing.initialization._unpatch_tornado()
+        tornado_opentracing.initialization._unpatch_tornado_client()
+        super(TestStartSpanCallbackException, self).tearDown()
+
+    def start_span_cb(self, span, request):
+        raise RuntimeError('This should not happen')
+
+    def get_app(self):
+        self.tracer = MockTracer(TornadoScopeManager())
+        return make_app(self.tracer,
+                        trace_client=False,
+                        start_span_cb=self.start_span_cb)
+
+    def test_start_span_cb(self):
+        response = self.fetch('/')
+        self.assertEqual(response.code, 200)
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertFalse(spans[0].tags.get('error', False))
+
+
 class TestClient(tornado.testing.AsyncHTTPTestCase):
     def setUp(self):
         tornado_opentracing.init_tracing()

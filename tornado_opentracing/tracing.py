@@ -142,8 +142,7 @@ class TornadoTracing(object):
                     scope.span.set_tag(attr, payload)
 
         # invoke the start span callback, if any
-        if self._start_span_cb is not None:
-            self._start_span_cb(scope.span, request)
+        self._call_start_span_cb(scope.span, request)
 
         return scope
 
@@ -164,3 +163,13 @@ class TornadoTracing(object):
             scope.span.set_tag(tags.HTTP_STATUS_CODE, handler.get_status())
 
         scope.close()
+
+    def _call_start_span_cb(self, span, request):
+        if self._start_span_cb is None:
+            return
+
+        try:
+            self._start_span_cb(span, request)
+        except Exception:
+            # TODO - log the error to the Span?
+            pass
