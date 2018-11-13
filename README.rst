@@ -34,10 +34,22 @@ In order to implement tracing in your system (for all the requests), add the fol
     # Initialize tracing before creating the Application object
     tornado_opentracing.init_tracing()
 
-    # Configure the tracer
+    # And either ONE of these possible values:
+
+    # 1. Specify a TornadoTracing object.
     app = Application(
         ''' Other parameters here '''
         opentracing_tracing=tornado_opentracing.TornadoTracing(tracer),
+    )
+
+    # 2. Pass a module-level callable, invoked once,
+    # returning an opentracing compliant Tracer with optional parameters.
+    app = Application(
+        ''' Other parameters here '''
+        opentracing_tracer_callable='opentracing.mocktracer.MockTracer',
+        opentracing_tracer_parameters={
+            'scope_manager': opentracing.scope_managers.TornadoScopeManager(),
+        },
     )
 
 It is possible to set additional settings, for advanced usage:

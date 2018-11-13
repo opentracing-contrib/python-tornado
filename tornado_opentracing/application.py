@@ -12,12 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
+
 from . import httpclient
 from .tracing import TornadoTracing
 
 
 DEFAULT_TRACE_ALL = True
 DEFAULT_TRACE_CLIENT = True
+
+
+def _get_callable_from_name(full_name):
+    mod_name, func_name = full_name.rsplit('.', 1)
+    mod = importlib.import_module(mod_name)
+    return getattr(mod, func_name, None)
 
 
 def tracer_config(__init__, app, args, kwargs):
@@ -28,9 +36,20 @@ def tracer_config(__init__, app, args, kwargs):
     __init__(*args, **kwargs)
 
     tracing = app.settings.get('opentracing_tracing')
+    tracer_callable = app.settings.get('opentracing_tracer_callable')
+    tracer_parameters = app.settings.get('opentracing_tracer_parameters', {})
+
+    if tracer_callable is not None:
+        if not callable(tracer_callable):
+            tracer_callable = _get_callable_from_name(tracer_callable)
+
+        tracer = tracer_callable(**tracer_parameters)
+        tracing = TornadoTracing(tracer)
+
     if tracing is None:
         tracing = TornadoTracing()  # fallback to the global tracer
-        app.settings['opentracing_tracing'] = tracing
+
+    app.settings['opentracing_tracing'] = tracing
 
     tracing._trace_all = app.settings.get('opentracing_trace_all',
                                           DEFAULT_TRACE_ALL)

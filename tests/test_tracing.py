@@ -58,13 +58,17 @@ class ScopeHandler(tornado.web.RequestHandler):
         self.write('{}')
 
 
-def make_app(tracer=None, trace_all=None, trace_client=None,
+def make_app(tracer=None, tracer_callable=None, tracer_parameters={},
+             trace_all=None, trace_client=None,
              traced_attributes=None, start_span_cb=None):
 
     settings = {
     }
     if tracer is not None:
         settings['opentracing_tracing'] = TornadoTracing(tracer)
+    if tracer_callable is not None:
+        settings['opentracing_tracer_callable'] = tracer_callable
+        settings['opentracing_tracer_parameters'] = tracer_parameters
     if trace_all is not None:
         settings['opentracing_trace_all'] = trace_all
     if trace_client is not None:
@@ -139,6 +143,66 @@ class TestInitWithoutTracingObj(tornado.testing.AsyncHTTPTestCase):
 
         self.assertEqual(spans[1].operation_name, 'GET')  # client
         self.assertEqual(spans[1].tags.get('done', None), True)
+
+
+# dummy tracer callable for testing.
+def tracer_callable(tracer):
+    return tracer
+
+
+class TestInitWithTracerCallable(tornado.testing.AsyncHTTPTestCase):
+    def setUp(self):
+        tornado_opentracing.init_tracing()
+        super(TestInitWithTracerCallable, self).setUp()
+
+    def tearDown(self):
+        tornado_opentracing.initialization._unpatch_tornado()
+        tornado_opentracing.initialization._unpatch_tornado_client()
+        super(TestInitWithTracerCallable, self).tearDown()
+
+    def get_app(self):
+        self.tracer = MockTracer(TornadoScopeManager())
+        return make_app(tracer_callable=tracer_callable, tracer_parameters={
+            'tracer': self.tracer,
+        })
+
+    def test_case(self):
+        response = self.fetch('/')
+        self.assertEqual(response.code, 200)
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 2)
+
+        self.assertEqual(spans[0].operation_name, 'MainHandler')  # server
+        self.assertEqual(spans[1].operation_name, 'GET')  # client
+
+
+class TestInitWithTracerCallableStr(tornado.testing.AsyncHTTPTestCase):
+    def setUp(self):
+        tornado_opentracing.init_tracing()
+        super(TestInitWithTracerCallableStr, self).setUp()
+
+    def tearDown(self):
+        tornado_opentracing.initialization._unpatch_tornado()
+        tornado_opentracing.initialization._unpatch_tornado_client()
+        super(TestInitWithTracerCallableStr, self).tearDown()
+
+    def get_app(self):
+        self.tracer = MockTracer(TornadoScopeManager())
+        return make_app(tracer_callable='tests.test_tracing.tracer_callable',
+                        tracer_parameters={
+                            'tracer': self.tracer
+                        })
+
+    def test_case(self):
+        response = self.fetch('/')
+        self.assertEqual(response.code, 200)
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 2)
+
+        self.assertEqual(spans[0].operation_name, 'MainHandler')  # server
+        self.assertEqual(spans[1].operation_name, 'GET')  # client
 
 
 class TestTracing(tornado.testing.AsyncHTTPTestCase):
