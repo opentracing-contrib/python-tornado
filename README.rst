@@ -25,8 +25,8 @@ In order to implement tracing in your system (for all the requests), add the fol
 
 .. code-block:: python
 
-    from opentracing.scope_managers.tornado import TornadoScopeManager
     import tornado_opentracing
+    from tornado_opentracing.scope_managers import TornadoScopeManager
 
     # Create your opentracing tracer using TornadoScopeManager for active Span handling.
     tracer = SomeOpenTracingTracer(scope_manager=TornadoScopeManager())
@@ -48,7 +48,7 @@ In order to implement tracing in your system (for all the requests), add the fol
         ''' Other parameters here '''
         opentracing_tracer_callable='opentracing.mocktracer.MockTracer',
         opentracing_tracer_parameters={
-            'scope_manager': opentracing.scope_managers.TornadoScopeManager(),
+            'scope_manager': tornado_opentracing.scope_managers.TornadoScopeManager(),
         },
     )
 
@@ -115,11 +115,11 @@ For applications tracing individual requests, or using only the http client (no 
 Active Span handling
 ====================
 
-For active ``Span`` handling and propagation, your ``Tracer`` should use ``opentracing.scope_managers.tornado.TornadoScopeManager``. Tracing both all requests and individual requests will set up a proper stack context automatically, and the active ``Span`` will be propagated from parent coroutines to their children. In any other case, code needs to be run under ``tracer_stack_context()`` explicitly:
+For active ``Span`` handling and propagation, your ``Tracer`` should use ``tornado_opentracing.scope_managers.TornadoScopeManager``. Tracing both all requests and individual requests will set up a proper stack context automatically, and the active ``Span`` will be propagated from parent coroutines to their children. In any other case, code needs to be run under ``tracer_stack_context()`` explicitly:
 
 .. code-block:: python
 
-    from opentracing.scope_managers.tornado import tracer_stack_context
+    from tornado_opentracing.scope_managers import tracer_stack_context
 
     with tracer_stack_context():
         ioloop.IOLoop.current().run_sync(main_func)

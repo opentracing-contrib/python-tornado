@@ -12,22 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import mock
 import unittest
 
 import opentracing
 from opentracing.mocktracer import MockTracer
-from opentracing.scope_managers.tornado import TornadoScopeManager
-from opentracing.scope_managers.tornado import tracer_stack_context
 import tornado.gen
 import tornado.web
 import tornado.testing
 import tornado_opentracing
+from tornado import version_info as tornado_version
 from tornado_opentracing import TornadoTracing
+from tornado_opentracing.scope_managers import TornadoScopeManager
+from tornado_opentracing.context_managers import tornado_context
+
+from .helpers import AsyncHTTPTestCase
+from .helpers.handlers import AsyncScopeHandler
+from .helpers.markers import (
+    skip_generator_contextvars_on_tornado6,
+    skip_no_async_await,
+)
+
+
+async_await_not_supported = (
+    sys.version_info < (3, 5) or tornado_version < (5, 0)
+)
 
 
 class MainHandler(tornado.web.RequestHandler):
+    SUPPORTED_METHODS = (
+        tornado.web.RequestHandler.SUPPORTED_METHODS + ('CUSTOM_METHOD',)
+    )
+
     def get(self):
+        self.write('{}')
+
+    def custom_method(self):
         self.write('{}')
 
 
@@ -36,7 +57,7 @@ class ErrorHandler(tornado.web.RequestHandler):
         raise ValueError('invalid input')
 
 
-class ScopeHandler(tornado.web.RequestHandler):
+class CoroutineScopeHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def do_something(self):
         tracing = self.settings.get('opentracing_tracing')
@@ -82,7 +103,8 @@ def make_app(tracer=None, tracer_callable=None, tracer_parameters={},
         [
             ('/', MainHandler),
             ('/error', ErrorHandler),
-            ('/coroutine_scope', ScopeHandler),
+            ('/coroutine_scope', CoroutineScopeHandler),
+            ('/async_scope', AsyncScopeHandler),
         ],
         **settings
     )
@@ -108,7 +130,7 @@ class TestTornadoTracingValues(unittest.TestCase):
             tornado_opentracing.TornadoTracing(start_span_cb=[])
 
 
-class TestTornadoTracingBase(tornado.testing.AsyncHTTPTestCase):
+class TestTornadoTracingBase(AsyncHTTPTestCase):
     def setUp(self):
         tornado_opentracing.init_tracing()
         super(TestTornadoTracingBase, self).setUp()
@@ -210,8 +232,28 @@ class TestTracing(TestTornadoTracingBase):
             'http.status_code': 200,
         })
 
+    def test_custom_method(self):
+        response = self.fetch(
+            '/',
+            method='CUSTOM_METHOD',
+            allow_nonstandard_methods=True
+        )
+        self.assertEqual(response.code, 200)
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(spans[0].finished)
+        self.assertEqual(spans[0].operation_name, 'MainHandler')
+        self.assertEqual(spans[0].tags, {
+            'component': 'tornado',
+            'span.kind': 'server',
+            'http.url': '/',
+            'http.method': 'CUSTOM_METHOD',
+            'http.status_code': 200,
+        })
+
     def test_error(self):
-        response = self.fetch('/error')
+        response = self.http_fetch(self.get_url('/error'))
         self.assertEqual(response.code, 500)
 
         spans = self.tracer.finished_spans()
@@ -230,8 +272,9 @@ class TestTracing(TestTornadoTracingBase):
             logs[0].key_values.get('error.object', None), ValueError
         ))
 
-    def test_scope(self):
-        response = self.fetch('/coroutine_scope')
+    @skip_generator_contextvars_on_tornado6
+    def test_scope_coroutine(self):
+        response = self.http_fetch(self.get_url('/coroutine_scope'))
         self.assertEqual(response.code, 200)
 
         spans = self.tracer.finished_spans()
@@ -247,11 +290,42 @@ class TestTracing(TestTornadoTracingBase):
 
         parent = spans[1]
         self.assertTrue(parent.finished)
-        self.assertEqual(parent.operation_name, 'ScopeHandler')
+        self.assertEqual(parent.operation_name, 'CoroutineScopeHandler')
         self.assertEqual(parent.tags, {
             'component': 'tornado',
             'span.kind': 'server',
             'http.url': '/coroutine_scope',
+            'http.method': 'GET',
+            'http.status_code': 200,
+        })
+
+        # Same trace.
+        self.assertEqual(child.context.trace_id, parent.context.trace_id)
+        self.assertEqual(child.parent_id, parent.context.span_id)
+
+    @skip_no_async_await
+    def test_scope_async(self):
+        response = self.http_fetch(self.get_url('/async_scope'))
+        self.assertEqual(response.code, 200)
+
+        spans = self.tracer.finished_spans()
+        self.assertEqual(len(spans), 2)
+
+        child = spans[0]
+        self.assertTrue(child.finished)
+        self.assertEqual(child.operation_name, 'Child')
+        self.assertEqual(child.tags, {
+            'start': 0,
+            'end': 1,
+        })
+
+        parent = spans[1]
+        self.assertTrue(parent.finished)
+        self.assertEqual(parent.operation_name, 'AsyncScopeHandler')
+        self.assertEqual(parent.tags, {
+            'component': 'tornado',
+            'span.kind': 'server',
+            'http.url': '/async_scope',
             'http.method': 'GET',
             'http.status_code': 200,
         })
@@ -267,7 +341,7 @@ class TestNoTraceAll(TestTornadoTracingBase):
         return make_app(self.tracer, trace_all=False, trace_client=False)
 
     def test_simple(self):
-        response = self.fetch('/')
+        response = self.http_fetch(self.get_url('/'))
         self.assertEqual(response.code, 200)
 
         spans = self.tracer.finished_spans()
@@ -360,10 +434,9 @@ class TestClient(TestTornadoTracingBase):
                         trace_all=False)
 
     def test_simple(self):
-        with tracer_stack_context():
-            self.http_client.fetch(self.get_url('/'), self.stop)
+        with tornado_context():
+            response = self.http_fetch(self.get_url('/'), self.stop)
 
-        response = self.wait()
         self.assertEqual(response.code, 200)
 
         spans = self.tracer.finished_spans()
@@ -392,10 +465,9 @@ class TestClientCallback(TestTornadoTracingBase):
         span.set_tag('custom-tag', 'custom-value')
 
     def test_simple(self):
-        with tracer_stack_context():
-            self.http_client.fetch(self.get_url('/'), self.stop)
+        with tornado_context():
+            response = self.http_fetch(self.get_url('/'), self.stop)
 
-        response = self.wait()
         self.assertEqual(response.code, 200)
 
         spans = self.tracer.finished_spans()

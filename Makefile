@@ -38,8 +38,11 @@ clean-test:
 lint:
 	flake8 $(project) tests
 
-test:
+test-local:
 	py.test -s --cov-report term-missing:skip-covered --cov=$(project)
+
+test:
+	tox
 
 build: 
 	python setup.py build

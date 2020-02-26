@@ -1,4 +1,8 @@
+.coverage
+.python-version
+.tox
 *.pyc
+.vscode
 dist
 bin
 eggs
@@ -6,3 +10,5 @@ lib
 *.egg-info
 build
 env/
+venv/
+.pytest_cache/*
