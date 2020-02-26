@@ -100,7 +100,6 @@ def fetch_async(func, handler, args, kwargs):
 
 
 def _finish_tracing_callback(future, span):
-
     status_code = None
     exc = future.exception()
     if exc:

@@ -25,7 +25,7 @@ In order to implement tracing in your system (for all the requests), add the fol
 
 .. code-block:: python
 
-    from opentracing.scope_managers.tornado import TornadoScopeManager
+    from opentracing_tornado.scope_managers import TornadoScopeManager
     import tornado_opentracing
 
     # Create your opentracing tracer using TornadoScopeManager for active Span handling.

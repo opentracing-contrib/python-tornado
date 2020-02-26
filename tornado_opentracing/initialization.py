@@ -33,6 +33,29 @@ def init_client_tracing(tracer=None, start_span_cb=None):
     _patch_tornado_client(tracer, start_span_cb)
 
 
+def _patch_handler_init(init, handler, args, kwargs):
+    """
+    This function patches tornado request handlers init method
+    and then patches method that handle HTTP requests inside.
+    This happens dynamically every time a request handler instace
+    is created. This is needed as HTTP handler method do not exists
+    on request handlers by default and are supposed to be added
+    by users.
+
+    TODO: check if patching __new__ would be better in any way.
+    """
+    init(*args, **kwargs)
+
+    tracing = handler.settings.get('opentracing_tracing')
+    if not tracing:
+        return
+    if not tracing._trace_all:
+        return
+
+    for method in handler.SUPPORTED_METHODS:
+        handlers.wrap_method(handler, method.lower())
+
+
 def _patch_tornado():
     # patch only once
     if getattr(tornado, '__opentracing_patch', False) is True:
@@ -43,8 +66,8 @@ def _patch_tornado():
     wrap_function('tornado.web', 'Application.__init__',
                   application.tracer_config)
 
-    wrap_function('tornado.web', 'RequestHandler._execute',
-                  handlers.execute)
+    wrap_function('tornado.web', 'RequestHandler.__init__',
+                  _patch_handler_init)
     wrap_function('tornado.web', 'RequestHandler.on_finish',
                   handlers.on_finish)
     wrap_function('tornado.web', 'RequestHandler.log_exception',
@@ -77,7 +100,7 @@ def _unpatch_tornado():
 
     _unpatch(tornado.web.Application, '__init__')
 
-    _unpatch(tornado.web.RequestHandler, '_execute')
+    _unpatch(tornado.web.RequestHandler, '__init__')
     _unpatch(tornado.web.RequestHandler, 'on_finish')
     _unpatch(tornado.web.RequestHandler, 'log_exception')
 
