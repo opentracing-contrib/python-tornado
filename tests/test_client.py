@@ -20,7 +20,7 @@ from tornado.httpclient import HTTPRequest
 import tornado.web
 import tornado.testing
 import tornado_opentracing
-from tornado_opentracing.scope_managers import ScopeManager
+from tornado_opentracing.scope_managers import TornadoScopeManager
 from tornado_opentracing.context_managers import tornado_context
 
 from .helpers import AsyncHTTPTestCase
@@ -51,7 +51,7 @@ def make_app():
 
 class TestClient(AsyncHTTPTestCase):
     def setUp(self):
-        self.tracer = MockTracer(ScopeManager())
+        self.tracer = MockTracer(TornadoScopeManager())
         super(TestClient, self).setUp()
 
     def tearDown(self):
