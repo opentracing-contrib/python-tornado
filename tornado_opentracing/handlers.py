@@ -12,24 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import wraps
+
 from tornado.web import HTTPError
 
-from opentracing.scope_managers.tornado import tracer_stack_context
 
-
-def execute(func, handler, args, kwargs):
+def wrap_method(handler, method_name):
     """
-    Wrap the handler ``_execute`` method to trace incoming requests,
-    extracting the context from the headers, if available.
+    wrap_method takes a request handler instance and a method name (string)
+    and decorates the method to add automatic tracing. It starts a span
+    on every HTTP request (method call) and then calls the original method.
     """
-    tracing = handler.settings.get('opentracing_tracing')
+    original = getattr(handler, method_name, None)
+    if original is None:
+        return
 
-    with tracer_stack_context():
-        if tracing._trace_all:
-            attrs = handler.settings.get('opentracing_traced_attributes', [])
-            tracing._apply_tracing(handler, attrs)
+    @wraps(original)
+    def wrapper(self, *args, **kwargs):
+        tracing = self.settings.get('opentracing_tracing')
+        if tracing:
+            attrs = self.settings.get('opentracing_traced_attributes', [])
+            tracing._apply_tracing(self, attrs)
+        return original(*args, **kwargs)
 
-        return func(*args, **kwargs)
+    bound_wrapper = wrapper.__get__(handler, handler.__class__)
+    setattr(handler, method_name, bound_wrapper)
 
 
 def on_finish(func, handler, args, kwargs):
