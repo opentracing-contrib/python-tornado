@@ -24,7 +24,7 @@ import tornado.testing
 import tornado_opentracing
 from tornado import version_info as tornado_version
 from tornado_opentracing import TornadoTracing
-from tornado_opentracing.scope_managers import ScopeManager
+from tornado_opentracing.scope_managers import TornadoScopeManager
 from tornado_opentracing.context_managers import tornado_context
 
 from .helpers import AsyncHTTPTestCase
@@ -143,7 +143,7 @@ class TestTornadoTracingBase(AsyncHTTPTestCase):
 
 class TestInitWithoutTracingObj(TestTornadoTracingBase):
     def get_app(self):
-        self.tracer = MockTracer(ScopeManager())
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(start_span_cb=self.start_span_cb)
 
     def start_span_cb(self, span, request):
@@ -176,7 +176,7 @@ def tracer_callable(tracer):
 
 class TestInitWithTracerCallable(TestTornadoTracingBase):
     def get_app(self):
-        self.tracer = MockTracer(ScopeManager())
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(tracer_callable=tracer_callable, tracer_parameters={
             'tracer': self.tracer,
         })
@@ -194,7 +194,7 @@ class TestInitWithTracerCallable(TestTornadoTracingBase):
 
 class TestInitWithTracerCallableStr(TestTornadoTracingBase):
     def get_app(self):
-        self.tracer = MockTracer(ScopeManager())
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(tracer_callable='tests.test_tracing.tracer_callable',
                         tracer_parameters={
                             'tracer': self.tracer
@@ -213,7 +213,7 @@ class TestInitWithTracerCallableStr(TestTornadoTracingBase):
 
 class TestTracing(TestTornadoTracingBase):
     def get_app(self):
-        self.tracer = MockTracer(ScopeManager())
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer, trace_client=False)
 
     def test_simple(self):
@@ -337,7 +337,7 @@ class TestTracing(TestTornadoTracingBase):
 
 class TestNoTraceAll(TestTornadoTracingBase):
     def get_app(self):
-        self.tracer = MockTracer(ScopeManager())
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer, trace_all=False, trace_client=False)
 
     def test_simple(self):
@@ -350,7 +350,7 @@ class TestNoTraceAll(TestTornadoTracingBase):
 
 class TestTracedAttributes(TestTornadoTracingBase):
     def get_app(self):
-        self.tracer = MockTracer(ScopeManager())
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
                         trace_client=False,
                         traced_attributes=[
@@ -385,7 +385,7 @@ class TestStartSpanCallback(TestTornadoTracingBase):
         span.set_tag('custom-tag', 'custom-value')
 
     def get_app(self):
-        self.tracer = MockTracer(ScopeManager())
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
                         trace_client=False,
                         start_span_cb=self.start_span_cb)
@@ -413,7 +413,7 @@ class TestStartSpanCallbackException(TestTornadoTracingBase):
         raise RuntimeError('This should not happen')
 
     def get_app(self):
-        self.tracer = MockTracer(ScopeManager())
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
                         trace_client=False,
                         start_span_cb=self.start_span_cb)
@@ -429,7 +429,7 @@ class TestStartSpanCallbackException(TestTornadoTracingBase):
 
 class TestClient(TestTornadoTracingBase):
     def get_app(self):
-        self.tracer = MockTracer(ScopeManager())
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
                         trace_all=False)
 
@@ -454,7 +454,7 @@ class TestClient(TestTornadoTracingBase):
 
 class TestClientCallback(TestTornadoTracingBase):
     def get_app(self):
-        self.tracer = MockTracer(ScopeManager())
+        self.tracer = MockTracer(TornadoScopeManager())
         return make_app(self.tracer,
                         trace_all=False,
                         start_span_cb=self.start_span_cb)

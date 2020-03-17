@@ -3,8 +3,8 @@ from tornado.web import Application, RequestHandler
 from tornado import gen
 
 import opentracing
-from opentracing.scope_managers.tornado import TornadoScopeManager
 import tornado_opentracing
+from tornado_opentracing.scope_managers import TornadoScopeManager 
 
 
 tornado_opentracing.init_tracing()

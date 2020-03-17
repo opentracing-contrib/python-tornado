@@ -2,7 +2,7 @@ import sys
 
 import tornado_opentracing
 from opentracing.mocktracer import MockTracer
-from tornado_opentracing.scope_managers import ScopeManager
+from tornado_opentracing.scope_managers import TornadoScopeManager
 
 
 if sys.version_info >= (3, 3):
@@ -11,4 +11,4 @@ else:
     from ._test_case import AsyncHTTPTestCase  # noqa
 
 
-tracing = tornado_opentracing.TornadoTracing(MockTracer(ScopeManager()))
+tracing = tornado_opentracing.TornadoTracing(MockTracer(TornadoScopeManager()))
