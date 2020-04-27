@@ -156,14 +156,9 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
 
         tags = spans[0].tags
         self.assertEqual(tags.get('error', None), True)
-
-        logs = spans[0].logs
-        self.assertEqual(len(logs), 1)
-        self.assertEqual(logs[0].key_values.get('event', None),
-                         'error')
-        self.assertTrue(isinstance(
-            logs[0].key_values.get('error.object', None), ValueError
-        ))
+        self.assertEqual(tags.get('sfx.error.kind', None), 'ValueError')
+        self.assertEqual(tags.get('sfx.error.object', None), '<class \'ValueError\'>')
+        self.assertEqual(tags.get('sfx.error.message', None), 'invalid value')
 
     @skip_generator_contextvars_on_tornado6
     @skip_generator_contextvars_on_py34
@@ -197,15 +192,19 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
                          'DecoratedCoroutineErrorHandler')
 
         tags = spans[0].tags
-        self.assertEqual(tags.get('error', None), True)
 
         logs = spans[0].logs
-        self.assertEqual(len(logs), 1)
-        self.assertEqual(logs[0].key_values.get('event', None),
-                         'error')
-        self.assertTrue(isinstance(
-            logs[0].key_values.get('error.object', None), ValueError
-        ))
+        #self.assertEqual(len(logs), 1)
+        #self.assertEqual(logs[0].key_values.get('event', None),
+        #                 'error')
+        #self.assertTrue(isinstance(
+        #    logs[0].key_values.get('error.object', None), ValueError
+        #))
+
+        self.assertEqual(tags.get('error', None), True)
+        self.assertEqual(tags.get('sfx.error.kind', None), 'ValueError')
+        self.assertEqual(tags.get('sfx.error.object', None), '<class \'ValueError\'>')
+        self.assertEqual(tags.get('sfx.error.message', None), 'invalid value')
 
     @skip_generator_contextvars_on_tornado6
     @skip_generator_contextvars_on_py34
@@ -271,14 +270,9 @@ class TestDecorated(tornado.testing.AsyncHTTPTestCase):
 
         tags = spans[0].tags
         self.assertEqual(tags.get('error', None), True)
-
-        logs = spans[0].logs
-        self.assertEqual(len(logs), 1)
-        self.assertEqual(logs[0].key_values.get('event', None),
-                         'error')
-        self.assertTrue(isinstance(
-            logs[0].key_values.get('error.object', None), ValueError
-        ))
+        self.assertEqual(tags.get('sfx.error.kind', None), 'ValueError')
+        self.assertEqual(tags.get('sfx.error.object', None), '<class \'ValueError\'>')
+        self.assertEqual(tags.get('sfx.error.message', None), 'invalid value')
 
     @skip_no_async_await
     def test_async_scope(self):

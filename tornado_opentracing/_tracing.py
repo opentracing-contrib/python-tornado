@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import functools
+import traceback
 import wrapt
 
 import opentracing
@@ -156,10 +157,9 @@ class BaseTornadoTracing(object):
 
         if error is not None:
             scope.span.set_tag(tags.ERROR, True)
-            scope.span.log_kv({
-                'event': tags.ERROR,
-                'error.object': error,
-            })
+            scope.span.set_tag('sfx.error.message', str(error))
+            scope.span.set_tag('sfx.error.object', str(error.__class__))
+            scope.span.set_tag('sfx.error.kind', error.__class__.__name__)
         else:
             scope.span.set_tag(tags.HTTP_STATUS_CODE, handler.get_status())
 

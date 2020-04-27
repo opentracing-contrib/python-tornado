@@ -263,14 +263,9 @@ class TestTracing(TestTornadoTracingBase):
 
         tags = spans[0].tags
         self.assertEqual(tags.get('error', None), True)
-
-        logs = spans[0].logs
-        self.assertEqual(len(logs), 1)
-        self.assertEqual(logs[0].key_values.get('event', None),
-                         'error')
-        self.assertTrue(isinstance(
-            logs[0].key_values.get('error.object', None), ValueError
-        ))
+        self.assertEqual(tags.get('sfx.error.kind', None), 'ValueError')
+        self.assertEqual(tags.get('sfx.error.object', None), '<class \'ValueError\'>')
+        self.assertEqual(tags.get('sfx.error.message', None), 'invalid input')
 
     @skip_generator_contextvars_on_tornado6
     def test_scope_coroutine(self):
